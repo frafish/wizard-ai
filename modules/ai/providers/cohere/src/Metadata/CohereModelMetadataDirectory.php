@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+namespace WordPress\CohereAiProvider\Metadata;
+
+use WordPress\AiClient\Messages\Enums\ModalityEnum;
+use WordPress\AiClient\Providers\Http\DTO\Request;
+use WordPress\AiClient\Providers\Http\DTO\Response;
+use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
+use WordPress\AiClient\Providers\Http\Exception\ResponseException;
+use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
+use WordPress\AiClient\Providers\Models\DTO\SupportedOption;
+use WordPress\AiClient\Providers\Models\Enums\CapabilityEnum;
+use WordPress\AiClient\Providers\Models\Enums\OptionEnum;
+use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleModelMetadataDirectory;
+use WordPress\CohereAiProvider\Provider\CohereProvider;
+
+/**
+ * Class for the Cohere model metadata directory.
+ *
+ * @since 1.0.0
+ */
+class CohereModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadataDirectory
+{
+    /**
+     * {@inheritDoc}
+     *
+     * @since 1.0.0
+     */
+    protected function createRequest(
+        HttpMethodEnum $method,
+        string $path,
+        array $headers = [],
+        $data = null
+    ): Request {
+        // Cohere models API has a different format for GET /v1/models.
+        // It returns {"models": [...]} instead of {"data": [...]}.
+        // But if they use OpenAI compatible endpoint, it might be different.
+        // For safety, we will just use their API URL.
+        return new Request(
+            $method,
+            CohereProvider::url($path),
+            $headers,
+            $data
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @since 1.0.0
+     */
+    protected function parseResponseToModelMetadataList(Response $response): array
+    {
+        $responseData = $response->getData();
+        
+        // Handle both standard OpenAI format and Cohere native format
+        $modelsData = [];
+        if (isset($responseData['data']) && !empty($responseData['data'])) {
+            $modelsData = (array) $responseData['data'];
+        } elseif (isset($responseData['models']) && !empty($responseData['models'])) {
+            $modelsData = (array) $responseData['models'];
+        } else {
+            throw ResponseException::fromMissingData('Cohere', 'models');
+        }
+
+        $baseTextOptions = [
+            new SupportedOption(OptionEnum::systemInstruction()),
+            new SupportedOption(OptionEnum::maxTokens()),
+            new SupportedOption(OptionEnum::temperature()),
+            new SupportedOption(OptionEnum::topP()),
+            new SupportedOption(OptionEnum::stopSequences()),
+            new SupportedOption(OptionEnum::outputMimeType(), ['text/plain', 'application/json']),
+            new SupportedOption(OptionEnum::customOptions()),
+            new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
+            new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
+            new SupportedOption(OptionEnum::functionDeclarations()),
+        ];
+
+        $models = [];
+
+        foreach ($modelsData as $modelData) {
+            $modelId = $modelData['id'] ?? $modelData['name']; // Fallback to 'name' if 'id' is missing.
+
+            if (!$modelId || str_contains($modelId, 'embed') || str_contains($modelId, 'rerank')) {
+                continue;
+            }
+
+            $models[] = new ModelMetadata(
+                $modelId,
+                $modelId, // Cohere uses the ID/name as the name.
+                [CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory()],
+                $baseTextOptions
+            );
+        }
+
+        return $models;
+    }
+}
