@@ -17,7 +17,7 @@ trait WizardAI_RAG_Exporter {
             $data[] = $row;
         }
 
-        $json_path = $this->db_dir . '/rag_embeddings.json';
+        $json_path = $this->db_dir . '/rag.json';
         $json_content = wp_json_encode($data);
         
         if (file_put_contents($json_path, $json_content) !== false) {

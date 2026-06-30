@@ -865,17 +865,21 @@ document.addEventListener('DOMContentLoaded', function () {
                         } else {
                             let aiResponse = data.response || '';
                             const escapedResponse = escapeHtml(aiResponse);
+                            let tokenHtml = '';
+                            if (data.token_usage && data.token_usage.totalTokens) {
+                                tokenHtml = `<div style="text-align: right; font-size: 11px; color: #888; margin-top: 8px; border-top: 1px dashed #ccc; padding-top: 4px;" title="Prompt: ${data.token_usage.promptTokens}, Completion: ${data.token_usage.completionTokens}">⚡ Tokens: ${data.token_usage.totalTokens}</div>`;
+                            }
                             const copyBtnHtml = `<button type="button" class="button button-small wbai-copy-btn" style="float: right;" data-text="${escapedResponse}" title="Copy to clipboard"><span class="dashicons dashicons-clipboard" style="font-size: 16px; width: 16px; height: 16px; margin-top: 3px;"></span> Copy</button>`;
                             const redirectMatch = aiResponse.match(/\[REDIRECT_TO_BLOCK:\s*(\d+)\]/i);
                             if (redirectMatch) {
                                 const blockId = redirectMatch[1];
                                 aiResponse = aiResponse.replace(redirectMatch[0], '');
-                                chatEl.insertAdjacentHTML('beforeend', '<div class="wbai-msg-ai">' + copyBtnHtml + '<strong>AI:</strong><br>' + aiResponse + '<br><br><em>Redirecting to block editor...</em></div>');
+                                chatEl.insertAdjacentHTML('beforeend', '<div class="wbai-msg-ai">' + copyBtnHtml + '<strong>AI:</strong><br>' + aiResponse + '<br><br><em>Redirecting to block editor...</em>' + tokenHtml + '</div>');
                                 setTimeout(() => {
                                     window.location.href = window.ajaxurl.replace('admin-ajax.php', 'post.php?post=' + blockId + '&action=edit');
                                 }, 1500);
                             } else {
-                                chatEl.insertAdjacentHTML('beforeend', '<div class="wbai-msg-ai">' + copyBtnHtml + '<strong>AI:</strong><br>' + aiResponse + '</div>');
+                                chatEl.insertAdjacentHTML('beforeend', '<div class="wbai-msg-ai">' + copyBtnHtml + '<strong>AI:</strong><br>' + aiResponse + tokenHtml + '</div>');
                             }
                             sendBtn.disabled = false;
                             checkPromptQueue();
@@ -1076,35 +1080,97 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 break;
             }
-            if (target.classList && target.classList.contains('wbai-copy-btn')) {
-                const textToCopy = target.getAttribute('data-text');
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(textToCopy).then(() => {
-                        const originalHtml = target.innerHTML;
-                        target.innerHTML = '✅ Copied!';
-                        setTimeout(() => { target.innerHTML = originalHtml; }, 2000);
-                    }).catch(err => {
-                        console.error('Failed to copy text: ', err);
-                    });
-                } else {
-                    const textarea = document.createElement('textarea');
-                    textarea.value = textToCopy;
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    try {
-                        document.execCommand('copy');
-                        const originalHtml = target.innerHTML;
-                        target.innerHTML = '✅ Copied!';
-                        setTimeout(() => { target.innerHTML = originalHtml; }, 2000);
-                    } catch (err) {
-                        console.error('Fallback copy failed', err);
-                    }
-                    document.body.removeChild(textarea);
-                }
-                break;
-            }
             target = target.parentNode;
         }
     });
 
+});
+    chatEl.addEventListener('click', function (e) {
+        if (e.target.closest('.wbai-copy-btn')) {
+            const btn = e.target.closest('.wbai-copy-btn');
+            const textToCopy = btn.getAttribute('data-text');
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = 'Copied!';
+                    setTimeout(() => { btn.innerHTML = origHtml; }, 2000);
+                }).catch(err => {
+                    console.error('Could not copy text: ', err);
+                });
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = textToCopy;
+                textarea.style.position = 'fixed';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = 'Copied!';
+                    setTimeout(() => { btn.innerHTML = origHtml; }, 2000);
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                }
+                document.body.removeChild(textarea);
+            }
+        }
+    });
+
+    // Token Estimator for Context
+    function updateTokenEstimate() {
+        let totalWords = 0;
+        
+        // Context textareas
+        document.querySelectorAll('.wbai-context-textarea').forEach(ta => {
+            if (ta.value.trim() !== '') {
+                // Check if it belongs to a checkbox
+                let include = true;
+                if (ta.id === 'wbai-system-info-context') {
+                    const cb = document.getElementById('wbai-include-system-info');
+                    if (cb && !cb.checked) include = false;
+                } else if (ta.id.startsWith('wbai-rag-context-')) {
+                    const type = ta.id.replace('wbai-rag-context-', '');
+                    const cb = document.getElementById('wbai-include-rag-info-' + type);
+                    if (cb && !cb.checked) include = false;
+                }
+                
+                if (include) {
+                    totalWords += ta.value.trim().split(/\s+/).length;
+                }
+            }
+        
+        
+        // Prompt textarea
+        const promptEl = document.getElementById('wbai-playground-prompt');
+        if (promptEl && promptEl.value.trim() !== '') {
+            totalWords += promptEl.value.trim().split(/\s+/).length;
+        }
+        
+        const tokenEstimate = Math.ceil(totalWords / 0.75);
+        
+        let estDisplay = document.getElementById('wbai-token-estimate-display');
+        if (!estDisplay) {
+            const contextCard = document.querySelector('.wbai-context-card summary h2');
+            if (contextCard) {
+                estDisplay = document.createElement('span');
+                estDisplay.id = 'wbai-token-estimate-display';
+                estDisplay.style.cssText = 'float: right; font-size: 12px; font-weight: normal; color: #666; margin-top: 4px; padding-left: 10px;';
+                contextCard.appendChild(estDisplay);
+            }
+        }
+        
+        if (estDisplay) {
+            estDisplay.innerHTML = `⚡ Est. Request Tokens: <strong>~${tokenEstimate}</strong>`;
+        }
+    }
+    
+    // Bind token estimate events
+    document.querySelectorAll('.wbai-context-textarea').forEach(ta => ta.addEventListener('input', updateTokenEstimate));
+    document.querySelectorAll('input[type="checkbox"][id^="wbai-include-"]').forEach(cb => cb.addEventListener('change', updateTokenEstimate));
+    const promptElToBind = document.getElementById('wbai-playground-prompt');
+    if (promptElToBind) {
+        promptElToBind.addEventListener('input', updateTokenEstimate);
+    }
+    updateTokenEstimate(); // Initial call
 });

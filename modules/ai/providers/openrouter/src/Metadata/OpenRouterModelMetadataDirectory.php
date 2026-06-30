@@ -62,7 +62,6 @@ class OpenRouterModelMetadataDirectory extends AbstractOpenAiCompatibleModelMeta
             new SupportedOption(OptionEnum::stopSequences()),
             new SupportedOption(OptionEnum::outputMimeType(), ['text/plain', 'application/json']),
             new SupportedOption(OptionEnum::customOptions()),
-            new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
         ];
 
@@ -79,6 +78,15 @@ class OpenRouterModelMetadataDirectory extends AbstractOpenAiCompatibleModelMeta
             if (!isset($modelData['supported_parameters']) || (is_array($modelData['supported_parameters']) && in_array('tools', $modelData['supported_parameters'], true))) {
                 $options[] = new SupportedOption(OptionEnum::functionDeclarations());
             }
+            
+            // Check vision support
+            $inputModalities = [ModalityEnum::text()];
+            if (isset($modelData['architecture']['modality']) && strpos($modelData['architecture']['modality'], 'image') !== false) {
+                $inputModalities[] = ModalityEnum::image();
+            } else if (isset($modelData['id']) && (strpos($modelData['id'], 'vision') !== false || strpos($modelData['id'], 'gpt-4o') !== false || strpos($modelData['id'], 'claude-3.5') !== false || strpos($modelData['id'], 'gemini-1.5') !== false || strpos($modelData['id'], 'pixtral') !== false)) {
+                $inputModalities[] = ModalityEnum::image();
+            }
+            $options[] = new SupportedOption(OptionEnum::inputModalities(), [$inputModalities]);
 
             // Skip free models or image models if necessary, but OpenRouter returns all accessible models.
             // Optionally, skip if not text generation, but assume OpenRouter list is mostly text models.

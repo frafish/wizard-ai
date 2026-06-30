@@ -95,7 +95,7 @@ trait Playground {
                 
             <?php
             $upload_dir = wp_upload_dir();
-            $db_path = $upload_dir['basedir'] . '/wbai/rag_embeddings.sqlite';
+            $db_path = $upload_dir['basedir'] . '/wbai/rag.sqlite';
             $has_rag_data = false;
             if (file_exists($db_path)) {
                 try {
@@ -122,7 +122,7 @@ trait Playground {
                     </summary>
                     <div class="wbai-context-columns">
                         <?php 
-                        $rag_json = wp_upload_dir()['basedir'] . '/wbai/rag_embeddings.json';
+                        $rag_json = wp_upload_dir()['basedir'] . '/wbai/rag.json';
                         $grouped_rag = [];
                         if (file_exists($rag_json)) {
                             $json_content = file_get_contents($rag_json);
@@ -573,6 +573,36 @@ trait Playground {
             }
         }
 
+        $patterns_info = "";
+        if (class_exists('\WP_Block_Patterns_Registry')) {
+            $patterns = \WP_Block_Patterns_Registry::get_instance()->get_all_registered();
+            if (!empty($patterns)) {
+                $patterns_list = [];
+                foreach ($patterns as $pattern) {
+                    $patterns_list[] = isset($pattern['name']) ? $pattern['name'] : '';
+                }
+                $patterns_list = array_filter($patterns_list);
+                if (!empty($patterns_list)) {
+                    $patterns_info = "- Gutenberg Patterns (insert using <!-- wp:pattern {\"slug\":\"PATTERN_NAME\"} /-->):\n  " . implode(', ', $patterns_list) . "\n\n";
+                }
+            }
+        }
+
+        $templates_info = "";
+        if (function_exists('get_block_templates')) {
+            $templates = get_block_templates();
+            if (!empty($templates)) {
+                $templates_list = [];
+                foreach ($templates as $template) {
+                    $templates_list[] = isset($template->id) ? $template->id : '';
+                }
+                $templates_list = array_filter($templates_list);
+                if (!empty($templates_list)) {
+                    $templates_info = "- Gutenberg Templates:\n  " . implode(', ', $templates_list) . "\n\n";
+                }
+            }
+        }
+
         return "ENVIRONMENT DETAILS:\n"
             . "- WordPress Version: " . get_bloginfo('version') . "\n"
             . "- Site URL: " . get_bloginfo('url') . "\n"
@@ -580,6 +610,8 @@ trait Playground {
             . "- WP_CONTENT_DIR: " . WP_CONTENT_DIR . "\n\n"
             . "- Active Plugins: " . implode(', ', $real_plugins) . "\n\n"
             . "- Active Blocks: " . (!empty($active_blocks) ? implode(', ', $active_blocks) : 'None') . "\n\n"
+            . $patterns_info
+            . $templates_info
             . "- Active Theme: " . $real_theme_name . " (" . $real_template . ")\n"
             . $theme_info . "\n"
             . "- Database Prefix: " . $wpdb->prefix . "\n"
@@ -619,7 +651,33 @@ trait Playground {
             } else {
                 $stored = get_transient($conversation_id);
                 if ($stored !== false) {
-                    $messages = unserialize($stored);
+                    $unserialized = unserialize($stored);
+                    if (is_array($unserialized)) {
+                        foreach ($unserialized as $msg) {
+                            if (method_exists($msg, 'getParts')) {
+                                $new_parts = [];
+                                foreach ($msg->getParts() as $part) {
+                                    if (method_exists($part, 'toArray')) {
+                                        $new_parts[] = \WordPress\AiClient\Messages\DTO\MessagePart::fromArray($part->toArray());
+                                    } else {
+                                        $new_parts[] = clone $part;
+                                    }
+                                }
+                                
+                                $role = method_exists($msg, 'getRole') ? $msg->getRole() : null;
+                                $role_str = is_object($role) && method_exists($role, '__toString') ? (string)$role : (is_string($role) ? $role : '');
+                                $is_model = ($role_str === 'model' || $role_str === 'assistant');
+                                
+                                if ($is_model) {
+                                    $messages[] = new \WordPress\AiClient\Messages\DTO\ModelMessage($new_parts);
+                                } else {
+                                    $messages[] = new \WordPress\AiClient\Messages\DTO\UserMessage($new_parts);
+                                }
+                            } else {
+                                $messages[] = clone $msg;
+                            }
+                        }
+                    }
                 } else {
                     remove_filter('http_request_timeout', $timeout_filter, 999);
                     return new \WP_REST_Response(['success' => false, 'message' => __('Conversation expired or invalid.', 'wizard-ai')], 400);
@@ -644,6 +702,43 @@ trait Playground {
             } else {
                 $env_info = '';
             }
+            
+            $object_id = isset($params['object_id']) ? intval($params['object_id']) : 0;
+            $object_type = isset($params['object_type']) ? sanitize_text_field($params['object_type']) : '';
+            
+            if ($object_id > 0) {
+                $meta_info = "";
+                $acf_id = $object_id;
+                if ($object_type === 'term' || $object_type === 'edit-tags') {
+                    $acf_id = 'term_' . $object_id;
+                } elseif (in_array($object_type, ['user', 'profile', 'user-edit'])) {
+                    $acf_id = 'user_' . $object_id;
+                }
+                
+                if (function_exists('get_fields')) {
+                    $acf_fields = get_fields($acf_id);
+                    if (!empty($acf_fields)) {
+                        $meta_info .= "SCF/ACF Custom Fields:\n" . wp_json_encode($acf_fields, JSON_PRETTY_PRINT) . "\n";
+                    }
+                } else {
+                    if ($object_type === 'post') {
+                        $all_meta = get_post_meta($object_id);
+                        $filtered_meta = [];
+                        foreach ($all_meta as $k => $v) {
+                            if (strpos($k, '_') !== 0) {
+                                $filtered_meta[$k] = maybe_unserialize($v[0]);
+                            }
+                        }
+                        if (!empty($filtered_meta)) {
+                            $meta_info .= "Custom Fields:\n" . wp_json_encode($filtered_meta, JSON_PRETTY_PRINT) . "\n";
+                        }
+                    }
+                }
+                if (!empty($meta_info)) {
+                    $env_info .= "\n\nOBJECT METADATA (ID: {$object_id}):\n" . $meta_info;
+                }
+            }
+
             if (!empty($params['system_info_context'])) {
                 $env_info = sanitize_textarea_field($params['system_info_context']) . "\n\n" . $env_info;
             }
@@ -1174,7 +1269,8 @@ trait Playground {
                             'action' => 'tool_calls',
                             'conversation_id' => $conversation_id,
                             'tools' => $tool_info,
-                            'previous_results' => $previous_results
+                            'previous_results' => $previous_results,
+                            'token_usage' => $result->getTokenUsage()->toArray()
                         ], 200);
                     }
                     
@@ -1222,7 +1318,8 @@ trait Playground {
                                 'action' => 'tool_calls',
                                 'conversation_id' => $conversation_id,
                                 'tools' => $tool_info,
-                                'previous_results' => $previous_results
+                                'previous_results' => $previous_results,
+                                'token_usage' => $result->getTokenUsage()->toArray()
                             ], 200);
                         }
                         
@@ -1258,7 +1355,8 @@ trait Playground {
                         'action' => 'done',
                         'conversation_id' => $conversation_id,
                         'response' => $display_text,
-                        'previous_results' => $previous_results
+                        'previous_results' => $previous_results,
+                        'token_usage' => $result->getTokenUsage()->toArray()
                     ], 200);
                     
                 } catch (\Throwable $e) {

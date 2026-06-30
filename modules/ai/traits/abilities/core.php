@@ -3,6 +3,61 @@ namespace WizardAi\Modules\Ai\Traits\Abilities;
 
 trait Core {
     public function register_core_abilities() {
+        wp_register_ability('ai/search', [
+            'label' => __('Search Content', 'wizard-ai'),
+            'description' => __('Search for public posts and pages using the native WordPress search function.', 'wizard-ai'),
+            'category' => 'wizard-blocks',
+            'execute_callback' => function($input) {
+                $query = isset($input['query']) ? sanitize_text_field($input['query']) : '';
+                if (empty($query)) {
+                    return new \WP_Error('invalid_query', 'Search query cannot be empty.');
+                }
+                
+                $args = [
+                    's' => $query,
+                    'post_type' => 'any',
+                    'post_status' => 'publish',
+                    'posts_per_page' => isset($input['limit']) ? absint($input['limit']) : 10,
+                ];
+                
+                $search_query = new \WP_Query($args);
+                $results = [];
+                
+                if ($search_query->have_posts()) {
+                    foreach ($search_query->posts as $post) {
+                        $results[] = [
+                            'id' => $post->ID,
+                            'title' => $post->post_title,
+                            'url' => get_permalink($post->ID),
+                            'type' => $post->post_type,
+                            'excerpt' => wp_trim_words(strip_shortcodes(strip_tags($post->post_content)), 55),
+                        ];
+                    }
+                }
+                
+                return [
+                    'success' => true,
+                    'results' => $results,
+                    'total_found' => $search_query->found_posts
+                ];
+            },
+            'permission_callback' => '__return_true',
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => [
+                        'type' => 'string',
+                        'description' => 'The search query string.'
+                    ],
+                    'limit' => [
+                        'type' => 'integer',
+                        'description' => 'Maximum number of results to return (default: 10).'
+                    ]
+                ],
+                'required' => ['query']
+            ]
+        ]);
+
         wp_register_ability('ai/db-query', [
             'label' => __('Execute DB Query', 'wizard-ai'),
             'description' => __('Execute raw SQL queries. Support SELECT, UPDATE, DELETE. Limit results.', 'wizard-ai'),

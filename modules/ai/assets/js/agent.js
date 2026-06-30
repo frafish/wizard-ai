@@ -196,6 +196,12 @@ jQuery(document).ready(function($) {
             }
             if (content) context += "Content:\n" + content + "\n\n";
             
+            const selectedBlocks = wp.data.select('core/block-editor').getSelectedBlocks();
+            if (selectedBlocks && selectedBlocks.length > 0) {
+                const selectedContent = wp.blocks.serialize(selectedBlocks);
+                context += "CURRENTLY SELECTED BLOCKS (The user has highlighted these blocks in the editor. If the user asks to 'change this' or 'rewrite this', they are referring to these blocks. Please prioritize modifying them):\n" + selectedContent + "\n\n";
+            }
+            
             if (wp.blocks && wp.blocks.getBlockTypes) {
                 const availableBlocks = wp.blocks.getBlockTypes().map(b => {
                     let attrsInfo = [];
@@ -253,12 +259,20 @@ jQuery(document).ready(function($) {
             if (wizardAiAgentData.debugMode) console.debug("[Wizard AI Agent] Gathering context...");
             const sessionContext = gatherContext();
             
+            let objectId = $('#post_ID').val() || $('#tag_ID').val() || $('#user_id').val() || '';
+            if (typeof wp !== 'undefined' && wp.data && wp.data.select('core/editor')) {
+                const currentPostId = wp.data.select('core/editor').getCurrentPostId();
+                if (currentPostId) objectId = currentPostId;
+            }
+
             const requestBody = {
                 prompt: isAuto ? "" : text,
                 session_context: sessionContext,
                 conversation_id: conversationId,
                 model: $('#wbai-agent-model-select').val() || '',
-                execute_tools: isAuto
+                execute_tools: isAuto,
+                object_id: objectId,
+                object_type: wizardAiAgentData.screen
             };
             
             if (wizardAiAgentData.debugMode) console.debug("[Wizard AI Agent] Sending API request:", requestBody);

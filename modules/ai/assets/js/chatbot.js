@@ -162,6 +162,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (emailSubmitBtn && emailInput) {
         emailSubmitBtn.addEventListener('click', function(e) {
             e.preventDefault();
+            
+            const consentBox = document.getElementById('wbai-chatbot-gdpr-consent');
+            if (consentBox && !consentBox.checked) {
+                consentBox.parentElement.style.color = 'red';
+                consentBox.focus();
+                return;
+            } else if (consentBox) {
+                consentBox.parentElement.style.color = '';
+            }
+
             const emailVal = emailInput.value.trim();
             const nameVal = nameInput ? nameInput.value.trim() : '';
             if (emailVal && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(emailVal)) {
@@ -282,6 +292,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const text = promptInput.value.trim();
         if (!text) return;
         
+        const consentBox = document.getElementById('wbai-chatbot-gdpr-consent');
+        if (consentBox && !consentBox.checked) {
+            consentBox.parentElement.style.color = 'red';
+            consentBox.focus();
+            return;
+        } else if (consentBox) {
+            consentBox.parentElement.style.color = '';
+            // Hide notice after consent since it's now approved for the session
+            const noticeBox = document.getElementById('wbai-chatbot-gdpr-notice');
+            if (noticeBox) noticeBox.style.display = 'none';
+        }
+        
         const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
         if (emailRegex.test(text)) {
             const hint = document.getElementById('wbai-chatbot-email-hint');
@@ -304,12 +326,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 current_content = document.body.innerText.substring(0, 15000);
             }
 
+            const hp = document.getElementById('wbai-chatbot-hp');
             const reqData = {
                 prompt: text,
                 session_id: sessionId,
                 current_url: window.location.href,
                 current_title: document.title,
-                current_content: current_content
+                current_content: current_content,
+                current_post_id: wizardAiChatbotData.post_id,
+                wbai_hp: hp ? hp.value : ''
             };
             if (wizardAiChatbotData.debugMode) {
                 console.debug('Wizard AI Chatbot: Sending request', { url: wizardAiChatbotData.rest_url, data: reqData });
@@ -318,7 +343,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(wizardAiChatbotData.rest_url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': wizardAiChatbotData.nonce
                 },
                 body: JSON.stringify(reqData)
             });

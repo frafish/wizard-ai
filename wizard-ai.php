@@ -39,6 +39,7 @@ add_action('plugins_loaded', function() {
     });
     
     new \WizardAi\Modules\Ai\Ai();
+    new \WizardAi\Modules\Wpml\Wpml();
 });
 
 // --- RAG CRON INTEGRATION ---

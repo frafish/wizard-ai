@@ -7,6 +7,10 @@ class Ai {
     use Traits\Block;
     use Traits\Agent;
     use Traits\Chatbot;
+    use Traits\Mcp;
+    use Traits\Markdown;
+    use Traits\Seo;
+    use Traits\TokenUsage;
 
     public $cm_settings = null;
     public $cm_sql_settings = null;
@@ -32,6 +36,10 @@ class Ai {
             }
             $this->register_agent_hooks();
             $this->register_chatbot_hooks();
+            $this->register_mcp_routes();
+            $this->register_markdown_hooks();
+            $this->register_seo_hooks();
+            $this->register_token_usage_hooks();
         }
     }
     
@@ -73,6 +81,38 @@ class Ai {
             'manage_options',
             'wizard-ai-chatbot',
             [$this, 'wb_ai_chatbot_page_html']
+        );
+        add_submenu_page(
+            'wizard-ai',
+            __('MCP & GPT Integrations', 'wizard-ai'),
+            __('MCP & GPT', 'wizard-ai'),
+            'manage_options',
+            'wizard-ai-mcp',
+            [$this, 'wb_ai_mcp_page_html']
+        );
+        add_submenu_page(
+            'wizard-ai',
+            __('Markdown Settings', 'wizard-ai'),
+            __('Markdown', 'wizard-ai'),
+            'manage_options',
+            'wizard-ai-markdown',
+            [$this, 'wb_ai_markdown_page_html']
+        );
+        add_submenu_page(
+            'wizard-ai',
+            __('Media SEO', 'wizard-ai'),
+            __('Media SEO', 'wizard-ai'),
+            'manage_options',
+            'wizard-ai-seo',
+            [$this, 'wb_ai_seo_page_html']
+        );
+        add_submenu_page(
+            null, // Hides the page from the WordPress sidebar menu
+            __('Chatbot Logs', 'wizard-ai'),
+            __('Chatbot Logs', 'wizard-ai'),
+            'manage_options',
+            'wizard-ai-chatbot-logs',
+            [$this, 'wb_ai_chatbot_logs_page_html']
         );
     }
 
@@ -157,7 +197,7 @@ class Ai {
         register_rest_route('wizard-blocks/v1', '/ai-chat', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_chat_request'],
-            'permission_callback' => function () { return current_user_can('manage_options'); }
+            'permission_callback' => [$this, 'chat_permission_check']
         ]);
         register_rest_route('wizard-blocks/v1', '/ai-models', [
             'methods' => 'GET',
@@ -184,6 +224,22 @@ class Ai {
             'callback' => [$this, 'download_ai_backup'],
             'permission_callback' => function () { return current_user_can('manage_options'); }
         ]);
+    }
+
+    public function chat_permission_check() {
+        $user = wp_get_current_user();
+        if (empty($user) || !$user->exists()) return false;
+        if (current_user_can('manage_options')) return true;
+
+        $selected_roles = get_option('wbai_agent_roles', ['administrator']);
+        if (!empty($user->roles)) {
+            foreach ($user->roles as $role) {
+                if (in_array($role, $selected_roles)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public function enable_safe_mode() {
@@ -441,12 +497,30 @@ class Ai {
                 }
             }
 
-            $requirements = new \WordPress\AiClient\Providers\Models\DTO\ModelRequirements(
-                [
+            if ($request->get_param('vision') === '1') {
+                $capabilities = [
+                    \WordPress\AiClient\Providers\Models\Enums\CapabilityEnum::textGeneration()
+                ];
+                $options = [
+                    new \WordPress\AiClient\Providers\Models\DTO\RequiredOption(
+                        \WordPress\AiClient\Providers\Models\Enums\OptionEnum::inputModalities(),
+                        [
+                            \WordPress\AiClient\Messages\Enums\ModalityEnum::text(),
+                            \WordPress\AiClient\Messages\Enums\ModalityEnum::image()
+                        ]
+                    )
+                ];
+            } else {
+                $capabilities = [
                     \WordPress\AiClient\Providers\Models\Enums\CapabilityEnum::textGeneration(),
                     \WordPress\AiClient\Providers\Models\Enums\CapabilityEnum::chatHistory()
-                ],
-                []
+                ];
+                $options = [];
+            }
+            
+            $requirements = new \WordPress\AiClient\Providers\Models\DTO\ModelRequirements(
+                $capabilities,
+                $options
             );
             $providerModels = $registry->findModelsMetadataForSupport($requirements);
             

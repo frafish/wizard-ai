@@ -106,7 +106,7 @@ class WizardAI_RAG_Embeddings_Cron {
             file_put_contents($this->db_dir . '/index.php', "<?php // Silence is golden.");
         }
 
-        $db_path = $this->db_dir . '/rag_embeddings.sqlite';
+        $db_path = $this->db_dir . '/rag.sqlite';
         
         try {
             $this->db = new PDO('sqlite:' . $db_path);
@@ -173,7 +173,13 @@ class WizardAI_RAG_Embeddings_Cron {
         }
         
         if (!empty($this->db_dir)) {
-            $log_file = $this->db_dir . '/sync.log';
+            $log_dir = $this->db_dir . '/logs';
+            if (!file_exists($log_dir)) {
+                wp_mkdir_p($log_dir);
+                file_put_contents($log_dir . '/.htaccess', "Deny from all\n");
+                file_put_contents($log_dir . '/index.php', "<?php // Silence is golden.");
+            }
+            $log_file = $log_dir . '/sync.log';
             file_put_contents($log_file, $log_message, FILE_APPEND);
         }
     }

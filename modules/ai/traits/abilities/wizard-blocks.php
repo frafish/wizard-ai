@@ -119,5 +119,86 @@ trait WizardBlocks {
                 'required' => ['slug', 'title', 'html']
             ]
         ]);
+        wp_register_ability('wizard-blocks/modify-block', [
+            'label' => __('Modify Wizard Block', 'wizard-ai'),
+            'description' => __('Modify an existing custom Gutenberg block. Only provide the files (html, css, or js) that you want to change. Omitted files will remain untouched.', 'wizard-ai'),
+            'category' => 'wizard-blocks',
+            'execute_callback' => function($input) {
+                if (!class_exists('\WizardBlocks\Modules\Block\Block')) {
+                    return new \WP_Error('plugin_missing', 'Wizard Blocks plugin is not installed or active.');
+                }
+                
+                $wb = \WizardBlocks\Modules\Block\Block::instance();
+                $block_slug = sanitize_title($input['slug']);
+                
+                $block_textdomain = $wb->get_plugin_textdomain();
+                if ($user = wp_get_current_user()) {
+                    $block_textdomain = $user->user_nicename;
+                }
+                
+                $existing_post = $wb->get_block_post($block_slug);
+                if (!$existing_post) {
+                    return new \WP_Error('block_not_found', 'Block not found. Please create it first.');
+                }
+                
+                $basepath = $wb->get_ensure_blocks_dir($block_slug, $block_textdomain);
+                
+                if (file_exists($basepath . 'block.json')) {
+                    $json = json_decode(file_get_contents($basepath . 'block.json'), true);
+                } else {
+                    $json = [];
+                }
+                
+                // Write files
+                if (isset($input['html'])) {
+                    if (!empty($input['html'])) {
+                        $wb->get_filesystem()->put_contents($basepath . 'render.php', $input['html']);
+                        $json['render'] = "file:./render.php";
+                    } else {
+                        if (file_exists($basepath . 'render.php')) $wb->get_filesystem()->delete($basepath . 'render.php');
+                        unset($json['render']);
+                    }
+                }
+                
+                if (isset($input['css'])) {
+                    if (!empty($input['css'])) {
+                        $wb->get_filesystem()->put_contents($basepath . 'style.css', $input['css']);
+                        $json['style'] = "file:./style.css";
+                    } else {
+                        if (file_exists($basepath . 'style.css')) $wb->get_filesystem()->delete($basepath . 'style.css');
+                        unset($json['style']);
+                    }
+                }
+                
+                if (isset($input['js'])) {
+                    if (!empty($input['js'])) {
+                        $wb->get_filesystem()->put_contents($basepath . 'script.js', $input['js']);
+                        $json['script'] = "file:./script.js";
+                    } else {
+                        if (file_exists($basepath . 'script.js')) $wb->get_filesystem()->delete($basepath . 'script.js');
+                        unset($json['script']);
+                    }
+                }
+                
+                $wb->get_filesystem()->put_contents($basepath . 'block.json', wp_json_encode($json, JSON_PRETTY_PRINT));
+                
+                return [
+                    'success' => true, 
+                    'message' => 'Block successfully modified.',
+                    'block_name' => $json['name'] ?? ''
+                ];
+            },
+            'permission_callback' => function() { return current_user_can('manage_options'); },
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'slug' => ['type' => 'string', 'description' => 'The slug of the block to modify (e.g. my-custom-block)'],
+                    'html' => ['type' => 'string', 'description' => 'The updated HTML/PHP markup for render.php'],
+                    'css' => ['type' => 'string', 'description' => 'The updated CSS for style.css'],
+                    'js' => ['type' => 'string', 'description' => 'The updated Javascript for script.js']
+                ],
+                'required' => ['slug']
+            ]
+        ]);
     }
 }

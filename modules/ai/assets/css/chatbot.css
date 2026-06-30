@@ -176,3 +176,49 @@
 .ui-resizable-s { cursor: s-resize; height: 7px; width: 100%; bottom: 0; left: 0; }
 .ui-resizable-e { cursor: e-resize; width: 7px; right: 0; top: 0; height: 100%; }
 .ui-resizable-w { cursor: w-resize; width: 7px; left: 0; top: 0; height: 100%; }
+
+#wbai-chatbot.wbai-pos-bottom-left { left: 20px; right: auto; }
+#wbai-chatbot.wbai-pos-bottom-right { right: 20px; left: auto; }
+
+#wbai-chatbot-reset {
+    background: none; border: none; color: #fff; cursor: pointer; margin-left: auto; margin-right: 5px;
+}
+#wbai-chatbot-toggle {
+    background: none; border: none; color: #fff; cursor: pointer;
+}
+#wbai-chatbot-email-hint {
+    font-size: 12px; padding: 10px; color: #666; text-align: center; border-bottom: 1px solid #eee; background-color: #fafafa;
+}
+.wbai-chatbot-contact-msg {
+    margin-bottom: 8px; font-style: italic;
+}
+.wbai-chatbot-email-form {
+    display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;
+}
+.wbai-chatbot-email-input {
+    font-size: 11px; padding: 4px; border: 1px solid #ddd; border-radius: 3px; flex: 1;
+}
+#wbai-chatbot-name-input {
+    min-width: 80px;
+}
+#wbai-chatbot-email-input {
+    min-width: 120px;
+}
+#wbai-chatbot-email-submit {
+    font-size: 11px; padding: 2px 8px; min-height: 0; line-height: 1.5; color: #fff; border: none; border-radius: 3px; cursor: pointer;
+}
+#wbai-chatbot-hp {
+    display: none !important;
+}
+#wbai-chatbot-gdpr-notice {
+    font-size: 10px; color: #888; text-align: center; padding: 6px 10px; line-height: 1.2; background-color: #f9f9f9; border-top: 1px solid #eee;
+}
+.wbai-privacy-link {
+    text-decoration: underline;
+}
+.wbai-chatbot-gdpr-label {
+    display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; margin-bottom: 5px; text-align: left;
+}
+#wbai-chatbot-gdpr-consent {
+    margin: 0; flex-shrink: 0;
+}

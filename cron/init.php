@@ -38,7 +38,7 @@ add_action('update_option_wbai_rag_embedding_provider', 'wizard_ai_rag_provider_
 function wizard_ai_rag_provider_changed($old_value, $new_value) {
     if ($old_value !== $new_value) {
         $upload_dir = wp_upload_dir();
-        $db_path = $upload_dir['basedir'] . '/wbai/rag_embeddings.sqlite';
+        $db_path = $upload_dir['basedir'] . '/wbai/rag.sqlite';
         if (file_exists($db_path)) {
             try {
                 $db = new PDO('sqlite:' . $db_path);
@@ -224,7 +224,7 @@ function wizard_ai_cron_settings_page() {
         <?php
         // Generate Database Status Report
         $upload_dir = wp_upload_dir();
-        $db_path = $upload_dir['basedir'] . '/wbai/rag_embeddings.sqlite';
+        $db_path = $upload_dir['basedir'] . '/wbai/rag.sqlite';
         $total_chunks = 0;
         $total_posts = 0;
         $last_update = __('Never', 'wizard-ai');

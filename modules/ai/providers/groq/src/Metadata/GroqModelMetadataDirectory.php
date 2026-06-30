@@ -62,7 +62,6 @@ class GroqModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadataDi
             new SupportedOption(OptionEnum::stopSequences()),
             new SupportedOption(OptionEnum::outputMimeType(), ['text/plain', 'application/json']),
             new SupportedOption(OptionEnum::customOptions()),
-            new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
             new SupportedOption(OptionEnum::functionDeclarations()),
         ];
@@ -79,11 +78,19 @@ class GroqModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadataDi
                 continue;
             }
 
+            $options = $baseTextOptions;
+            
+            $inputModalities = [ModalityEnum::text()];
+            if (strpos($modelId, 'vision') !== false || strpos($modelId, 'llama-3.2-11b-vision') !== false || strpos($modelId, 'llama-3.2-90b-vision') !== false) {
+                $inputModalities[] = ModalityEnum::image();
+            }
+            $options[] = new SupportedOption(OptionEnum::inputModalities(), [$inputModalities]);
+
             $models[] = new ModelMetadata(
                 $modelId,
                 $modelId, // Groq uses the ID as the name.
                 [CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory()],
-                $baseTextOptions
+                $options
             );
         }
 
