@@ -26,7 +26,7 @@ trait Ui {
             <div class="card wai-playground-card">
                 <div id="wai-playground-chat-wrapper">
                     <div id="wai-playground-chat"></div>
-                    <button type="button" class="button toggle-distraction-free" title="<?php esc_attr_e('Toggle full screen', 'wizard-ai'); ?>" style="padding: 4px 10px;">
+                    <button type="button" class="toggle-distraction-free" title="<?php esc_attr_e('Toggle full screen', 'wizard-ai'); ?>">
                         <span class="dashicons dashicons-fullscreen-alt"></span>
                     </button>
                 </div>
@@ -46,7 +46,7 @@ trait Ui {
                         </label>
                         <div class="wai-toolbar-separator"></div>
                         
-                        <button type="button" id="wai-export-session" class="wai-session-btn" title="<?php esc_attr_e('Export session prompts to a JSON file', 'wizard-ai'); ?>">
+                        <button type="button" id="wai-export-session" class="wai-session-btn" title="<?php esc_attr_e('Export session prompts to a JSON file', 'wizard-ai'); ?>" style="display: none;">
                             <span class="dashicons dashicons-download"></span>
                         </button>
                         <button type="button" id="wai-import-session" class="wai-session-btn" title="<?php esc_attr_e('Import prompts from JSON file and execute', 'wizard-ai'); ?>">
@@ -385,7 +385,6 @@ trait Ui {
         <!-- Load Select2 -->
         <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
         <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-        <script src="<?php echo esc_url(WIZARD_AI_URL . 'modules/playground/assets/js/playground.js?v=' . time()); ?>"></script>
         <?php
     }
 

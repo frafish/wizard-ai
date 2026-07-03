@@ -116,7 +116,7 @@ function wizard_ai_cron_settings_menu() {
     add_submenu_page(
         $parent_slug,
         __('RAG Embeddings', 'wizard-ai'),
-        __('RAG Sync', 'wizard-ai'),
+        __('AI RAG', 'wizard-ai'),
         'manage_options',
         'wizard-ai-rag',
         'wizard_ai_cron_settings_page'

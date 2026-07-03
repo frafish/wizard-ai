@@ -577,15 +577,30 @@ trait Chat {
             $retry_without_tools = false;
             
             $models_to_try = [];
-            if (empty($requested_model) && $fallback_models) {
+            if (!empty($requested_model)) {
+                $models_to_try[] = $requested_model;
+            }
+            
+            if ($fallback_models) {
                 $models_response = \WizardAi\Modules\Ai\Ai::instance()->get_ai_models($request);
                 $models_data = $models_response->get_data();
                 if (!empty($models_data['models'])) {
-                    $models_to_try = array_keys($models_data['models']);
+                    $all_models = [];
+                    foreach ($models_data['models'] as $provider_models) {
+                        foreach (array_keys($provider_models) as $model_id) {
+                            $all_models[] = $model_id;
+                        }
+                    }
+                    foreach ($all_models as $m) {
+                        if ($m !== $requested_model && !in_array($m, $models_to_try)) {
+                            $models_to_try[] = $m;
+                        }
+                    }
                 }
             }
+            
             if (empty($models_to_try)) {
-                $models_to_try = [$requested_model];
+                $models_to_try = [''];
             }
             
             $model_index = 0;
@@ -773,8 +788,8 @@ trait Chat {
                     $error_msg = str_replace('`', '', strtolower($e->getMessage()));
                     $error_code = $e->getCode();
 
-                    if (empty($requested_model) && $fallback_models) {
-                        $is_fallback_error = ($error_code >= 400 && $error_code < 500) || preg_match('/\b4[0-9]{2}\b/', $error_msg);
+                    if ($fallback_models) {
+                        $is_fallback_error = ($error_code >= 400 && $error_code < 600) || preg_match('/\b[45][0-9]{2}\b/', $error_msg) || strpos($error_msg, 'api error') !== false || strpos($error_msg, 'upstream') !== false;
                         if ($is_fallback_error && isset($models_to_try[$model_index + 1])) {
                             $model_index++;
                             $current_model_to_try = $models_to_try[$model_index];

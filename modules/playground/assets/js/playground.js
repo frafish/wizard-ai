@@ -14,7 +14,7 @@ function initPlaygroundSpeech() {
 
         recognition.onstart = function () {
             isRecording = true;
-            speechBtn.textContent = '🔴';
+            speechBtn.innerHTML = '<span class="dashicons dashicons-microphone" style="color: #d63638;"></span>';
         };
 
         recognition.onresult = function (event) {
@@ -29,7 +29,7 @@ function initPlaygroundSpeech() {
         recognition.onerror = function (event) {
             console.error('Speech recognition error', event.error);
             isRecording = false;
-            speechBtn.textContent = '🎤';
+            speechBtn.innerHTML = '<span class="dashicons dashicons-microphone"></span>';
 
             if (event.error === 'not-allowed') {
                 alert('Microphone access was denied. Please allow microphone access to use speech-to-text.');
@@ -42,7 +42,7 @@ function initPlaygroundSpeech() {
 
         recognition.onend = function () {
             isRecording = false;
-            speechBtn.textContent = '🎤';
+            speechBtn.innerHTML = '<span class="dashicons dashicons-microphone"></span>';
         };
 
         speechBtn.addEventListener('click', function () {
@@ -86,16 +86,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     handles: 'se, s'
                 });
             }
-
-            chatWrapper.on('click', '.toggle-distraction-free', function (e) {
-                e.preventDefault();
-                chatWrapper.toggleClass('distraction-free');
-                const icon = jQuery(this).find('.dashicons');
-                icon.toggleClass('dashicons-fullscreen-alt');
-                icon.toggleClass('dashicons-fullscreen-exit-alt');
-            });
         }
     }
+
+    document.addEventListener('click', function (e) {
+        const toggleDistractionFreeBtn = e.target.closest('.toggle-distraction-free');
+        if (toggleDistractionFreeBtn) {
+            e.preventDefault();
+            const card = toggleDistractionFreeBtn.closest('.wai-playground-card');
+            if (card) {
+                card.classList.toggle('distraction-free');
+                const icon = toggleDistractionFreeBtn.querySelector('.dashicons');
+                if (icon) {
+                    icon.classList.toggle('dashicons-fullscreen-alt');
+                    icon.classList.toggle('dashicons-fullscreen-exit-alt');
+                }
+            }
+        }
+    });
 
 
     // AI Playground chat
@@ -274,6 +282,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 session_prompts: window.waiSessionPrompts
             };
             localStorage.setItem('wai_chat_state', JSON.stringify(state));
+            
+            const exportBtn = document.getElementById('wai-export-session');
+            if (exportBtn) exportBtn.style.display = 'inline-block';
         }
     }
 
@@ -290,6 +301,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (state.session_prompts) {
                 window.waiSessionPrompts = state.session_prompts;
+                const exportBtn = document.getElementById('wai-export-session');
+                if (exportBtn && window.waiSessionPrompts.length > 0) exportBtn.style.display = 'inline-block';
             }
             // Re-initialize any CodeMirror instances if needed, or they remain as static code blocks.
             // In most cases, previous messages don't need re-execution.
@@ -798,6 +811,9 @@ document.addEventListener('DOMContentLoaded', function () {
                                 details.innerHTML = displayArgs;
 
                                 header.classList.add('wai-tool-header-toggle');
+                                header.onclick = () => {
+                                    details.style.display = details.style.display === 'none' ? 'block' : 'none';
+                                };
 
                                 toolNode.appendChild(header);
                                 toolNode.appendChild(details);

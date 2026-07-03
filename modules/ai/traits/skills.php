@@ -34,6 +34,11 @@ trait Skills {
                 'id' => 'builtin_wordpress_coding_standards.md',
                 'is_builtin' => true,
                 'content' => "Follow WordPress PHP Coding Standards. Always prefix custom functions with the plugin slug. Use `wp_safe_redirect` instead of `wp_redirect` where applicable. Sanitize all inputs and escape all outputs. On common user requests for custom snippets or functionality, you should insert the code into the functions.php of the active theme."
+            ],
+            [
+                'id' => 'builtin_wordpress_patterns.md',
+                'is_builtin' => true,
+                'content' => "When asked to create page content with advanced graphics or layouts, use the official WordPress Patterns directory. You can use your search web tools or directly fetch them. You can also fetch patterns from the WordPress API (https://api.wordpress.org/patterns/1.0/ or https://wordpress.org/patterns/wp-json/wp/v2/wporg-pattern) to find suitable block patterns to insert into the editor."
             ]
         ];
     }

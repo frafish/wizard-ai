@@ -30,17 +30,28 @@
     top: 10px;
     right: 20px;
     z-index: 10;
-    opacity: 0.5;
-    padding: 0px;
-    line-height: 1;
-    min-height: 1px;
+    opacity: 0.7;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    color: #50575e;
 }
 
 #wai-playground-chat-wrapper .toggle-distraction-free:hover {
     opacity: 1;
+    background: #f6f7f7;
+    color: #2271b1;
 }
 
-#wai-playground-chat-wrapper.distraction-free {
+.wai-playground-card.distraction-free {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -49,11 +60,33 @@
     z-index: 100000 !important;
     margin: 0 !important;
     background: #fafafa !important;
+    max-width: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    border-radius: 0 !important;
 }
 
-#wai-playground-chat-wrapper.distraction-free #wai-playground-chat {
-    border: none !important;
-    border-radius: 0 !important;
+.wai-playground-card.distraction-free #wai-playground-chat-wrapper {
+    flex-grow: 1 !important;
+    height: auto !important;
+    margin-bottom: 20px !important;
+}
+
+.wai-playground-card.distraction-free #wai-playground-chat {
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+}
+
+.wai-playground-card.distraction-free .ui-resizable-se,
+.wai-playground-card.distraction-free .ui-resizable-s {
+    display: none !important;
+}
+
+.wai-playground-card.distraction-free .wai-playground-prompt-wrapper,
+.wai-playground-card.distraction-free .wai-toolbar {
+    flex-shrink: 0;
 }
 
 .ui-resizable-se {
@@ -126,6 +159,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 4px 8px;
+    background: #efefef;
+    border-radius: 8px;
 }
 
 .wai-toolbar-left {

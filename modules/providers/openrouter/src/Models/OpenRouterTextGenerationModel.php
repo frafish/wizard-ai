@@ -66,4 +66,23 @@ class OpenRouterTextGenerationModel extends AbstractOpenAiCompatibleTextGenerati
         
         return parent::parseResponseChoiceToCandidate($choiceData, $index);
     }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @since 1.0.0
+     */
+    protected function parseResponseToGenerativeAiResult(\WordPress\AiClient\Providers\Http\DTO\Response $response): \WordPress\AiClient\Results\DTO\GenerativeAiResult
+    {
+        $responseData = $response->getData();
+        
+        if (isset($responseData['error']) && is_array($responseData['error'])) {
+            $message = $responseData['error']['message'] ?? 'Unknown OpenRouter API error.';
+            $code = isset($responseData['error']['code']) ? (int)$responseData['error']['code'] : 429;
+            if ($code === 0 || $code >= 500) $code = 429; // Force 4xx so it triggers fallback models and not safe mode
+            throw new \WordPress\AiClient\Providers\Http\Exception\ResponseException('OpenRouter API Error: ' . $message, $code);
+        }
+
+        return parent::parseResponseToGenerativeAiResult($response);
+    }
 }

@@ -26,6 +26,7 @@ class Ai {
 
         
         add_action('admin_menu', [$this, 'add_ai_settings_menu']);
+        add_action('admin_menu', [$this, 'add_ai_skills_abilities_menu'], 99);
         
         new Abilities();
         
@@ -65,6 +66,9 @@ class Ai {
             'wizard-ai',
             [ \WizardAi\Modules\Playground\Playground::instance(), 'wb_ai_page_html' ]
         );
+    }
+
+    public function add_ai_skills_abilities_menu() {
         add_submenu_page(
             'wizard-ai',
             __('AI Abilities', 'wizard-ai'),
