@@ -1,0 +1,609 @@
+/* wai-playground-chat */
+#wai-playground-chat-wrapper {
+    position: relative;
+    margin-bottom: 0;
+    height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: height 0.4s ease, opacity 0.4s ease, margin-bottom 0.4s ease;
+}
+
+#wai-playground-chat-wrapper.has-content {
+    height: 300px;
+    opacity: 1;
+    margin-bottom: 15px;
+}
+
+#wai-playground-chat {
+    border: 1px solid #ddd;
+    padding: 15px;
+    height: 100%;
+    overflow-y: auto;
+    background: #fafafa;
+    border-radius: 4px;
+    font-family: monospace;
+    box-sizing: border-box;
+}
+
+#wai-playground-chat-wrapper .toggle-distraction-free {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    z-index: 10;
+    opacity: 0.5;
+    padding: 0px;
+    line-height: 1;
+    min-height: 1px;
+}
+
+#wai-playground-chat-wrapper .toggle-distraction-free:hover {
+    opacity: 1;
+}
+
+#wai-playground-chat-wrapper.distraction-free {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 100000 !important;
+    margin: 0 !important;
+    background: #fafafa !important;
+}
+
+#wai-playground-chat-wrapper.distraction-free #wai-playground-chat {
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+.ui-resizable-se {
+    width: 0px;
+    height: 0px;
+    border-style: solid;
+    border-width: 0 0 10px 10px;
+    border-color: transparent transparent gray transparent;
+    transform: rotate(0deg);
+    position: absolute;
+    bottom: 1px;
+    right: 1px;
+    cursor: se-resize;
+}
+
+.ui-resizable-s {
+    cursor: s-resize;
+    height: 7px;
+    width: 100%;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+}
+
+/* wai-playground-prompt */
+.wai-playground-prompt-wrapper {
+    position: relative;
+}
+
+#wai-playground-prompt {
+    width: 100%;
+    height: 82px;
+    margin-bottom: 10px;
+    border-radius: 50px;
+    padding: 30px;
+    padding-right: 50px;
+    resize: none;
+}
+
+#wai-speech-to-text {
+    position: absolute;
+    right: 30px;
+    top: 30px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    padding: 0;
+    display: none;
+    color: #50575e;
+    transition: color 0.2s ease;
+}
+
+#wai-speech-to-text:hover {
+    color: #2271b1;
+}
+
+.wai-prompt-hint {
+    position: absolute;
+    bottom: 20px;
+    right: 30px;
+    font-size: 11px;
+    color: #a7aaad;
+    pointer-events: none;
+    font-style: italic;
+}
+
+/* wai-toolbar */
+.wai-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.wai-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+#wai-playground-model {
+    max-width: 300px;
+}
+
+.wai-auto-approve-label {
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    color: #50575e;
+}
+
+.wai-fallback-models-label {
+    margin-left: 10px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    color: #50575e;
+}
+
+.wai-toolbar-separator {
+    border-left: 1px solid #ccc;
+    height: 20px;
+    margin: 0 5px;
+}
+
+.wai-session-btn {
+    padding: 0 8px;
+    min-height: 28px;
+    line-height: normal;
+}
+
+#wai-export-session .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+#wai-import-session .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* wai-examples */
+.wai-examples-wrapper,
+.wai-recent-prompts-wrapper {
+    margin-top: 15px;
+}
+
+.wai-examples-title,
+.wai-recent-prompts-title {
+    margin-top: 0;
+    margin-bottom: 8px;
+    color: #646970;
+    font-weight: 600;
+}
+
+.wai-examples-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.wai-example-btn {
+    font-size: 12px;
+    padding: 4px 8px;
+    height: auto;
+    min-height: 0;
+    line-height: 1.4;
+}
+
+/* wai-recent-prompts */
+.wai-recent-prompts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wai-no-recent-prompts {
+    margin: 0;
+    font-size: 12px;
+    color: #8c8f94;
+}
+
+.wai-recent-prompt-btn {
+    font-size: 12px;
+    padding: 4px 8px;
+    height: auto;
+    min-height: 0;
+    line-height: 1.4;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.wai-recent-prompts-log-link {
+    margin-top: 15px;
+    text-align: right;
+}
+
+/* wai-cards */
+.wai-playground-card {
+    max-width: 100%;
+    margin-top: 20px;
+    padding: 25px;
+    border-radius: 8px;
+    min-height: 75vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.wai-api-config-card {
+    max-width: 800px;
+    margin-top: 20px;
+    padding: 25px;
+    border-radius: 8px;
+}
+
+.wai-api-config-title {
+    margin-top: 0;
+}
+
+#test-results {
+    margin-top: 10px;
+    font-weight: bold;
+}
+
+.wai-api-config-notice {
+    margin-top: 20px !important;
+}
+
+/* wai-layout */
+.wai-cards-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.wai-column-card {
+    flex: 1 1 45%;
+    margin-top: 0;
+    margin-bottom: 0;
+    min-width: 300px;
+}
+
+.wai-empty-column {
+    flex: 1 1 45%;
+    min-width: 300px;
+}
+
+.wai-context-card,
+.wai-rag-card {
+    margin-top: 20px;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.wai-card-summary-wrap {
+    cursor: pointer;
+    outline: none;
+    padding-bottom: 5px;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.wai-card-summary-wrap::-webkit-details-marker {
+    display: none;
+}
+
+.wai-card-summary-wrap h2 {
+    display: inline-block;
+    margin: 0;
+}
+
+.wai-card-summary-wrap::after {
+    content: '+';
+    font-size: 22px;
+    font-weight: 400;
+    color: #646970;
+    line-height: 1;
+    transition: transform 0.2s ease;
+}
+
+details[open]>.wai-card-summary-wrap::after {
+    content: '−';
+}
+
+.wai-card-title {
+    margin-top: 0;
+}
+
+/* wai-backups */
+.wai-backups-container {
+    margin-top: 15px;
+    text-align: left;
+}
+
+.wai-backups-actions {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+}
+
+.wai-backups-summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.wai-backups-list {
+    margin-top: 10px;
+    margin-bottom: 0;
+    max-height: 150px;
+    overflow-y: auto;
+    padding-left: 0;
+    color: #666;
+    font-family: monospace;
+    list-style: none;
+}
+
+.wai-backup-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding: 6px 0;
+}
+
+.wai-backup-time {
+    font-weight: 600;
+    display: block;
+}
+
+.wai-backup-desc {
+    font-size: 11px;
+    color: #8c8f94;
+}
+
+/* wai-rollback */
+.wai-rollback-btn-wrapper {
+    margin-top: 8px;
+    text-align: right;
+}
+
+.wai-rollback-btn {
+    border-color: #d63638 !important;
+    color: #d63638 !important;
+}
+
+/* wai-messages */
+.wai-msg-user {
+    margin-bottom: 15px;
+    background: #e3f2fd;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.wai-msg-loading {
+    margin-bottom: 15px;
+    color: #888;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wai-msg-loading svg {
+    width: 16px;
+    height: 16px;
+    animation: wai-spin 1s linear infinite;
+}
+
+.wai-msg-ai {
+    margin-bottom: 15px;
+    margin-top: 15px;
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.wai-msg-error {
+    margin-bottom: 15px;
+    color: #d63638;
+    background: #fcf0f1;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #f8c3c4;
+}
+
+.wai-msg-tool-result {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #ccc;
+}
+
+.wai-msg-tool-result.wai-error {
+    color: #d63638;
+}
+
+.wai-msg-tool-result.wai-success {
+    color: #46b450;
+}
+
+.wai-msg-tool-details {
+    margin-top: 6px;
+    cursor: pointer;
+}
+
+.wai-msg-tool-details summary {
+    color: #666;
+    font-size: 10px;
+}
+
+.wai-msg-tool-pre,
+.wai-msg-sql-pre {
+    margin-top: 4px;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+    overflow-x: auto;
+    color: #333;
+    font-size: 10px;
+}
+
+.wai-msg-sql-pre {
+    background: #282c34;
+    color: #abb2bf;
+    padding: 10px;
+    font-family: monospace;
+    line-height: 1.4;
+    font-size: 13px;
+}
+
+.wai-tool-help {
+    margin-left: auto;
+    color: #646970;
+    background: #f0f0f1;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid #ccc;
+}
+
+.wai-safe-mode-notice {
+    background: #e6f2ff;
+    border-left: 4px solid #2271b1;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: 3px;
+}
+
+.wai-code-ta {
+    width: 100%;
+    font-family: monospace;
+}
+
+.wai-code-ta+.CodeMirror {
+    height: auto !important;
+    min-height: 100px;
+}
+
+.wai-pre-wrap {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 11px;
+    margin: 5px 0 0 0;
+    background: #fff;
+    padding: 8px;
+    border: 1px solid #ddd;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.wai-hl-keyword {
+    color: #c678dd;
+}
+
+.wai-hl-string {
+    color: #98c379;
+}
+
+.wai-hl-var {
+    color: #e06c75;
+}
+
+.wai-hl-func {
+    color: #61afef;
+}
+
+.wai-safe-mode-active {
+    background: #e6f2ff !important;
+    border-color: #2271b1 !important;
+}
+
+.wai-safe-mode-active .dashicons {
+    color: #2271b1;
+}
+
+/* Select2 WP Admin overrides */
+.select2-container--default .select2-selection--single {
+    height: 30px;
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 28px;
+    color: #2c3338;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 28px;
+}
+
+.wai-hidden {
+    display: none !important;
+}
+
+.wai-btn-danger {
+    color: #d63638 !important;
+    border-color: #d63638 !important;
+}
+
+/* wai-context styling removed as now uses layout classes */
+
+.wai-context-columns {
+    display: flex;
+    gap: 20px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.wai-context-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+}
+
+.wai-context-col label {
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.wai-context-textarea {
+    width: 100%;
+    height: 350px;
+    margin-bottom: 10px;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+}

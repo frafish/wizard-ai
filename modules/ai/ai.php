@@ -3,21 +3,26 @@ namespace WizardAi\Modules\Ai;
 
 class Ai {
     
-    use Traits\Playground;
-    use Traits\Block;
-    use Traits\Agent;
-    use Traits\Chatbot;
-    use Traits\Mcp;
-    use Traits\Markdown;
-    use Traits\Seo;
-    use Traits\TokenUsage;
+
+
+    use Traits\Skills;
+    use Traits\AbilitiesUi;
 
     public $cm_settings = null;
     public $cm_sql_settings = null;
+    private static $instance = null;
+    
+    public static function instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
 
     public function __construct() {
+        if (self::$instance !== null) return;
+        self::$instance = $this;
         add_action('rest_api_init', [$this, 'register_ai_routes']);
-        add_action('admin_enqueue_scripts', [$this, 'enqueue_playground_scripts']);
 
         
         add_action('admin_menu', [$this, 'add_ai_settings_menu']);
@@ -34,12 +39,7 @@ class Ai {
                     add_action('post_submitbox_start', [$this, 'add_ai_button_to_submitbox']);
                 }
             }
-            $this->register_agent_hooks();
-            $this->register_chatbot_hooks();
-            $this->register_mcp_routes();
-            $this->register_markdown_hooks();
-            $this->register_seo_hooks();
-            $this->register_token_usage_hooks();
+            $this->register_skills_hooks();
         }
     }
     
@@ -53,115 +53,57 @@ class Ai {
             __('Wizard AI', 'wizard-ai'),
             'manage_options',
             'wizard-ai',
-            [$this, 'wb_ai_page_html'],
+            [ \WizardAi\Modules\Playground\Playground::instance(), 'wb_ai_page_html' ],
             'dashicons-superhero',
             30
         );
-        // Rename first submenu item
         add_submenu_page(
             'wizard-ai',
             __('Playground', 'wizard-ai'),
             __('Playground', 'wizard-ai'),
             'manage_options',
             'wizard-ai',
-            [$this, 'wb_ai_page_html']
+            [ \WizardAi\Modules\Playground\Playground::instance(), 'wb_ai_page_html' ]
         );
         add_submenu_page(
             'wizard-ai',
-            __('Agent Settings', 'wizard-ai'),
-            __('Editor Agent', 'wizard-ai'),
+            __('AI Abilities', 'wizard-ai'),
+            __('AI Abilities', 'wizard-ai'),
             'manage_options',
-            'wizard-ai-agent',
-            [$this, 'wb_ai_agent_page_html']
+            'wizard-ai-abilities',
+            [$this, 'wb_ai_abilities_page_html']
         );
         add_submenu_page(
             'wizard-ai',
-            __('Frontend Chatbot', 'wizard-ai'),
-            __('Frontend Chatbot', 'wizard-ai'),
+            __('AI Skills', 'wizard-ai'),
+            __('AI Skills', 'wizard-ai'),
             'manage_options',
-            'wizard-ai-chatbot',
-            [$this, 'wb_ai_chatbot_page_html']
-        );
-        add_submenu_page(
-            'wizard-ai',
-            __('MCP & GPT Integrations', 'wizard-ai'),
-            __('MCP & GPT', 'wizard-ai'),
-            'manage_options',
-            'wizard-ai-mcp',
-            [$this, 'wb_ai_mcp_page_html']
-        );
-        add_submenu_page(
-            'wizard-ai',
-            __('Markdown Settings', 'wizard-ai'),
-            __('Markdown', 'wizard-ai'),
-            'manage_options',
-            'wizard-ai-markdown',
-            [$this, 'wb_ai_markdown_page_html']
-        );
-        add_submenu_page(
-            'wizard-ai',
-            __('Media SEO', 'wizard-ai'),
-            __('Media SEO', 'wizard-ai'),
-            'manage_options',
-            'wizard-ai-seo',
-            [$this, 'wb_ai_seo_page_html']
-        );
-        add_submenu_page(
-            null, // Hides the page from the WordPress sidebar menu
-            __('Chatbot Logs', 'wizard-ai'),
-            __('Chatbot Logs', 'wizard-ai'),
-            'manage_options',
-            'wizard-ai-chatbot-logs',
-            [$this, 'wb_ai_chatbot_logs_page_html']
+            'wizard-ai-skills',
+            [$this, 'wb_ai_skills_page_html']
         );
     }
-
-
-
-    public function enqueue_playground_scripts($hook) {
-        if (strpos($hook, 'wizard-ai') !== false || (isset($_GET['page']) && $_GET['page'] === 'wizard-ai')) {
-            $user = wp_get_current_user();
-            $prev = $user->syntax_highlighting;
-            $user->syntax_highlighting = 'true';
-            
-            $this->cm_settings = wp_enqueue_code_editor(array('type' => 'application/x-httpd-php'));
-            $this->cm_sql_settings = wp_enqueue_code_editor(array('type' => 'text/x-sql'));
-            
-            $user->syntax_highlighting = $prev;
-
-            // Force manual enqueue to guarantee loading
-            wp_enqueue_script('wp-codemirror');
-            wp_enqueue_style('wp-codemirror');
-            wp_enqueue_script('code-editor');
-            wp_enqueue_style('code-editor');
-            
-            wp_enqueue_script('jquery-ui-resizable');
-            wp_enqueue_style('wbai-playground-style', WIZARD_AI_URL . 'modules/ai/assets/css/playground.css', array(), time());
-        }
-    }
-
     public function register_subplugins_providers() {
         if (!class_exists('\WordPress\AiClient\AiClient')) {
             return;
         }
 
-        if (file_exists(__DIR__ . '/providers/groq/src/autoload.php')) {
-            require_once __DIR__ . '/providers/groq/src/autoload.php';
+        if (file_exists(WIZARD_AI_PATH . 'modules/providers/groq/src/autoload.php')) {
+            require_once WIZARD_AI_PATH . 'modules/providers/groq/src/autoload.php';
         }
-        if (file_exists(__DIR__ . '/providers/openrouter/src/autoload.php')) {
-            require_once __DIR__ . '/providers/openrouter/src/autoload.php';
+        if (file_exists(WIZARD_AI_PATH . 'modules/providers/openrouter/src/autoload.php')) {
+            require_once WIZARD_AI_PATH . 'modules/providers/openrouter/src/autoload.php';
         }
-        if (file_exists(__DIR__ . '/providers/huggingface/src/autoload.php')) {
-            require_once __DIR__ . '/providers/huggingface/src/autoload.php';
+        if (file_exists(WIZARD_AI_PATH . 'modules/providers/huggingface/src/autoload.php')) {
+            require_once WIZARD_AI_PATH . 'modules/providers/huggingface/src/autoload.php';
         }
-        if (file_exists(__DIR__ . '/providers/github/src/autoload.php')) {
-            require_once __DIR__ . '/providers/github/src/autoload.php';
+        if (file_exists(WIZARD_AI_PATH . 'modules/providers/github/src/autoload.php')) {
+            require_once WIZARD_AI_PATH . 'modules/providers/github/src/autoload.php';
         }
-        if (file_exists(__DIR__ . '/providers/mistral/src/autoload.php')) {
-            require_once __DIR__ . '/providers/mistral/src/autoload.php';
+        if (file_exists(WIZARD_AI_PATH . 'modules/providers/mistral/src/autoload.php')) {
+            require_once WIZARD_AI_PATH . 'modules/providers/mistral/src/autoload.php';
         }
-        if (file_exists(__DIR__ . '/providers/cohere/src/autoload.php')) {
-            require_once __DIR__ . '/providers/cohere/src/autoload.php';
+        if (file_exists(WIZARD_AI_PATH . 'modules/providers/cohere/src/autoload.php')) {
+            require_once WIZARD_AI_PATH . 'modules/providers/cohere/src/autoload.php';
         }
 
         $registry = \WordPress\AiClient\AiClient::defaultRegistry();
@@ -194,20 +136,10 @@ class Ai {
             'permission_callback' => function () { return current_user_can('edit_posts'); }
         ]);
         
-        register_rest_route('wizard-blocks/v1', '/ai-chat', [
-            'methods' => 'POST',
-            'callback' => [$this, 'handle_chat_request'],
-            'permission_callback' => [$this, 'chat_permission_check']
-        ]);
         register_rest_route('wizard-blocks/v1', '/ai-models', [
             'methods' => 'GET',
             'callback' => [$this, 'get_ai_models'],
-            'permission_callback' => function () { return current_user_can('manage_options'); }
-        ]);
-        register_rest_route('wizard-blocks/v1', '/toggle-safe-mode', [
-            'methods' => 'POST',
-            'callback' => [$this, 'toggle_safe_mode'],
-            'permission_callback' => function () { return current_user_can('manage_options'); }
+            'permission_callback' => [$this, 'chat_permission_check']
         ]);
         register_rest_route('wizard-blocks/v1', '/rollback-ai-action', [
             'methods' => 'POST',
@@ -242,72 +174,7 @@ class Ai {
         return false;
     }
 
-    public function enable_safe_mode() {
-        $mu_dir = WPMU_PLUGIN_DIR;
-        if (!is_dir($mu_dir)) {
-            wp_mkdir_p($mu_dir);
-        }
-        $plugin_file = trailingslashit($mu_dir) . 'wizard-blocks-safe-mode.php';
-        
-        $theme_dir = get_theme_root() . '/wizard-blocks-safe-theme';
-        if (!is_dir($theme_dir)) {
-            wp_mkdir_p($theme_dir);
-            file_put_contents($theme_dir . '/style.css', "/*\nTheme Name: Wizard Blocks Safe Theme\n*/");
-            file_put_contents($theme_dir . '/index.php', "");
-        }
 
-        if (!file_exists($plugin_file) || strpos(file_get_contents($plugin_file), 'wizard-ai') === false) {
-            $code = "<?php\n" .
-                "/*\n" .
-                "Plugin Name: Wizard Blocks Safe Mode\n" .
-                "Description: Forces empty theme and disables other plugins on the Playground page.\n" .
-                "*/\n" .
-                "\$is_playground_page = isset(\$_GET['page']) && \$_GET['page'] === 'wbai';\n" .
-                "\$is_ai_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-blocks/v1/ai') !== false;\n" .
-                "\$is_toggle_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-blocks/v1/toggle-safe-mode') !== false;\n" .
-                "\$enforce_ai = file_exists(ABSPATH . '.wb_ai_safe') || (isset(\$_GET['wbai_enforce_safe_mode']) && \$_GET['wbai_enforce_safe_mode'] === '1');\n" .
-                "if (\$is_playground_page || ((\$is_ai_rest || \$is_toggle_rest) && \$enforce_ai)) {\n" .
-                "    add_filter('option_active_plugins', function(\$plugins) {\n" .
-                "        \$allowed = [];\n" .
-                "        foreach (\$plugins as \$plugin) {\n" .
-                "            if (strpos(\$plugin, 'wizard-blocks') !== false || strpos(\$plugin, 'wizard-ai') !== false || strpos(\$plugin, 'ai-provider') !== false) {\n" .
-                "                \$allowed[] = \$plugin;\n" .
-                "            }\n" .
-                "        }\n" .
-                "        return \$allowed;\n" .
-                "    });\n" .
-                "    add_filter('option_active_sitewide_plugins', function(\$plugins) {\n" .
-                "        \$allowed = [];\n" .
-                "        if (is_array(\$plugins)) {\n" .
-                "            foreach (\$plugins as \$plugin => \$time) {\n" .
-                "                if (strpos(\$plugin, 'wizard-blocks') !== false || strpos(\$plugin, 'wizard-ai') !== false || strpos(\$plugin, 'ai-provider') !== false) {\n" .
-                "                    \$allowed[\$plugin] = \$time;\n" .
-                "                }\n" .
-                "            }\n" .
-                "        }\n" .
-                "        return \$allowed;\n" .
-                "    });\n" .
-                "    add_filter('stylesheet', function(\$theme) { return 'wizard-blocks-safe-theme'; });\n" .
-                "    add_filter('template', function(\$theme) { return 'wizard-blocks-safe-theme'; });\n" .
-                "}\n";
-            file_put_contents($plugin_file, $code);
-        }
-    }
-
-    public function disable_safe_mode() {
-        $mu_dir = WPMU_PLUGIN_DIR;
-        $plugin_file = trailingslashit($mu_dir) . 'wizard-blocks-safe-mode.php';
-        $theme_dir = get_theme_root() . '/wizard-blocks-safe-theme';
-
-        if (file_exists($plugin_file)) {
-            unlink($plugin_file);
-        }
-        if (is_dir($theme_dir)) {
-            if (file_exists($theme_dir . '/style.css')) unlink($theme_dir . '/style.css');
-            if (file_exists($theme_dir . '/index.php')) unlink($theme_dir . '/index.php');
-            rmdir($theme_dir);
-        }
-    }
 
     public function rollback_ai_action(\WP_REST_Request $request) {
         $backup_id = sanitize_text_field($request->get_param('backup_id'));

@@ -162,14 +162,14 @@ trait Core {
                     return new \WP_Error('security_error', 'The use of die() or exit() is blocked as it will break the AI API response loop.');
                 }
                 
-                global $wbai_is_executing;
-                $wbai_is_executing = true;
+                global $wai_is_executing;
+                $wai_is_executing = true;
                 
-                global $wbai_shutdown_registered;
-                if (!$wbai_shutdown_registered) {
+                global $wai_shutdown_registered;
+                if (!$wai_shutdown_registered) {
                     register_shutdown_function(function() {
-                        global $wbai_is_executing;
-                        if ($wbai_is_executing) {
+                        global $wai_is_executing;
+                        if ($wai_is_executing) {
                             $error = error_get_last();
                             if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
                                 while (ob_get_level()) { ob_end_clean(); }
@@ -177,14 +177,14 @@ trait Core {
                             }
                         }
                     });
-                    $wbai_shutdown_registered = true;
+                    $wai_shutdown_registered = true;
                 }
                 
                 ob_start();
                 try {
                     $result = eval($code);
                     $output = ob_get_clean();
-                    $wbai_is_executing = false;
+                    $wai_is_executing = false;
                     
                     $response = [
                         'success' => true,
@@ -193,7 +193,7 @@ trait Core {
                     ];
                     return $response;
                 } catch (\Throwable $e) {
-                    $wbai_is_executing = false;
+                    $wai_is_executing = false;
                     ob_end_clean();
                     return new \WP_Error('php_error', $e->getMessage() . ' on line ' . $e->getLine());
                 }
@@ -305,7 +305,7 @@ trait Core {
                     $plugin_dir = wp_normalize_path(WP_PLUGIN_DIR . '/' . $p_dirname);
                     if (is_dir($plugin_dir) && class_exists('ZipArchive')) {
                         $upload_dir = wp_upload_dir();
-                        $backup_dir = $upload_dir['basedir'] . '/wbai/backup';
+                        $backup_dir = $upload_dir['basedir'] . '/wai/backup';
                         if (!is_dir($backup_dir)) wp_mkdir_p($backup_dir);
                         $safe_slug = sanitize_title($p_dirname);
                         $zip_name = $safe_slug . '_' . time() . '.zip';

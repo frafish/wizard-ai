@@ -1,0 +1,378 @@
+#wai-chatbot {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    height: 400px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    z-index: 999999;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+#wai-chatbot.wai-chatbot-closed {
+    width: 50px !important;
+    height: 50px !important;
+    border-radius: 50%;
+}
+
+#wai-chatbot.wai-chatbot-closed #wai-chatbot-body {
+    display: none !important;
+}
+
+#wai-chatbot.wai-chatbot-closed #wai-chatbot-header {
+    border-radius: 50%;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    justify-content: center;
+    cursor: pointer;
+}
+
+#wai-chatbot.wai-chatbot-closed .wai-chatbot-title-text,
+#wai-chatbot.wai-chatbot-closed #wai-chatbot-toggle,
+#wai-chatbot.wai-chatbot-closed #wai-chatbot-reset {
+    display: none;
+}
+
+#wai-chatbot.wai-chatbot-closed #wai-chatbot-header>span.dashicons:first-child {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+}
+
+#wai-chatbot-header {
+    background: #2271b1;
+    color: #fff;
+    padding: 12px 15px;
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+}
+
+.wai-chatbot-title-text {
+    margin-left: 8px;
+    font-size: 14px;
+}
+
+#wai-chatbot-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: auto;
+    min-height: 0;
+}
+
+#wai-chatbot-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f9f9f9;
+}
+
+.wai-chatbot-msg {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    word-wrap: break-word;
+    position: relative;
+}
+
+.wai-chatbot-sys,
+.wai-chatbot-ai {
+    background: #fff;
+    border: 1px solid #ddd;
+    color: #333;
+    align-self: flex-start;
+    padding-bottom: 24px;
+}
+
+.wai-chatbot-user {
+    background: #e3f2fd;
+    color: #0d47a1;
+    align-self: flex-end;
+    margin-left: 20px;
+}
+
+.wai-chatbot-speak-btn {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px;
+    margin: 0;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+}
+
+.wai-chatbot-speak-btn:hover {
+    opacity: 1;
+}
+
+#wai-chatbot-input-area {
+    display: flex;
+    padding: 10px;
+    background: #fff;
+    border-top: 1px solid #ddd;
+}
+
+#wai-chatbot-prompt {
+    flex: 1;
+    height: 36px;
+    min-height: 36px;
+    resize: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8px 32px 8px 8px;
+    font-size: 13px;
+    font-family: inherit;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+#wai-chatbot-mic {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+    border-radius: 50%;
+}
+
+#wai-chatbot-mic:hover {
+    color: #2271b1;
+}
+
+#wai-chatbot-send {
+    margin-left: 8px;
+    height: 36px;
+    width: 36px;
+    border: none;
+    background: #2271b1;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#wai-chatbot-send:hover {
+    background: #135e96;
+}
+
+.wai-chatbot-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 8px 16px;
+    background-color: #2271b1;
+    color: #fff !important;
+    text-decoration: none !important;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 13px;
+    transition: background-color 0.2s;
+    text-align: center;
+}
+
+.wai-chatbot-btn:hover {
+    background-color: #135e96;
+}
+
+/* jQuery UI Resizable fallback styles */
+.ui-resizable-handle {
+    position: absolute;
+    font-size: 0.1px;
+    display: block;
+    touch-action: none;
+}
+
+.ui-resizable-se {
+    cursor: se-resize;
+    width: 12px;
+    height: 12px;
+    right: 1px;
+    bottom: 1px;
+}
+
+.ui-resizable-nw {
+    cursor: nw-resize;
+    width: 9px;
+    height: 9px;
+    left: 1px;
+    top: 1px;
+}
+
+.ui-resizable-ne {
+    cursor: ne-resize;
+    width: 9px;
+    height: 9px;
+    right: 1px;
+    top: 1px;
+}
+
+.ui-resizable-sw {
+    cursor: sw-resize;
+    width: 9px;
+    height: 9px;
+    left: 1px;
+    bottom: 1px;
+}
+
+.ui-resizable-n {
+    cursor: n-resize;
+    height: 7px;
+    width: 100%;
+    top: 0;
+    left: 0;
+}
+
+.ui-resizable-s {
+    cursor: s-resize;
+    height: 7px;
+    width: 100%;
+    bottom: 0;
+    left: 0;
+}
+
+.ui-resizable-e {
+    cursor: e-resize;
+    width: 7px;
+    right: 0;
+    top: 0;
+    height: 100%;
+}
+
+.ui-resizable-w {
+    cursor: w-resize;
+    width: 7px;
+    left: 0;
+    top: 0;
+    height: 100%;
+}
+
+#wai-chatbot.wai-pos-bottom-left {
+    left: 20px;
+    right: auto;
+}
+
+#wai-chatbot.wai-pos-bottom-right {
+    right: 20px;
+    left: auto;
+}
+
+#wai-chatbot-reset {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    margin-left: auto;
+    margin-right: 5px;
+}
+
+#wai-chatbot-toggle {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+}
+
+#wai-chatbot-email-hint {
+    font-size: 12px;
+    padding: 10px;
+    color: #666;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    background-color: #fafafa;
+}
+
+.wai-chatbot-contact-msg {
+    margin-bottom: 8px;
+    font-style: italic;
+}
+
+.wai-chatbot-email-form {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.wai-chatbot-email-input {
+    font-size: 11px;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    flex: 1;
+}
+
+#wai-chatbot-name-input {
+    min-width: 80px;
+}
+
+#wai-chatbot-email-input {
+    min-width: 120px;
+}
+
+#wai-chatbot-email-submit {
+    font-size: 11px;
+    padding: 2px 8px;
+    min-height: 0;
+    line-height: 1.5;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+#wai-chatbot-hp {
+    display: none !important;
+}
+
+#wai-chatbot-gdpr-notice {
+    font-size: 10px;
+    color: #888;
+    text-align: center;
+    padding: 6px 10px;
+    line-height: 1.2;
+    background-color: #f9f9f9;
+    border-top: 1px solid #eee;
+}
+
+.wai-privacy-link {
+    text-decoration: underline;
+}
+
+.wai-chatbot-gdpr-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    cursor: pointer;
+    margin-bottom: 5px;
+    text-align: left;
+}
+
+#wai-chatbot-gdpr-consent {
+    margin: 0;
+    flex-shrink: 0;
+}

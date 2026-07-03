@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Wizard AI
- * Description: AI capabilities for Wizard Blocks.
- * Version: 1.0.0
+ * Description: AI capabilities suite for WordPress.
+ * Version: 1.0.1
  * Author: frapesce
  * Text Domain: wizard-ai
  * Requires at least: 7.0
@@ -38,12 +38,18 @@ add_action('plugins_loaded', function() {
         }
     });
     
-    new \WizardAi\Modules\Ai\Ai();
+    \WizardAi\Modules\Ai\Ai::instance();
+    \WizardAi\Modules\Playground\Playground::instance();
+    new \WizardAi\Modules\Editor\Editor();
+    new \WizardAi\Modules\Block\Block();
+    new \WizardAi\Modules\Chatbot\Chatbot();
+    new \WizardAi\Modules\Seo\Seo();
+    new \WizardAi\Modules\Markdown\Markdown();
+    new \WizardAi\Modules\Mcp\Mcp();
     new \WizardAi\Modules\Wpml\Wpml();
+    new \WizardAi\Modules\Rag\Rag();
 });
 
-// --- RAG CRON INTEGRATION ---
-require_once WIZARD_AI_PATH . 'cron/init.php';
 
 // Add Settings Link on Plugin Page
 add_filter('plugin_action_links_' . plugin_basename(WIZARD_AI_FILE), 'wizard_ai_plugin_action_links');
