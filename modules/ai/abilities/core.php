@@ -1,5 +1,5 @@
 <?php
-namespace WizardAi\Modules\Ai\Traits\Abilities;
+namespace WizardAi\Modules\Ai\Abilities;
 
 trait Core {
     public function register_core_abilities() {

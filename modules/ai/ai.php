@@ -7,9 +7,12 @@ class Ai {
 
     use Traits\Skills;
     use Traits\AbilitiesUi;
+    use Traits\ModelsUi;
 
     public $cm_settings = null;
     public $cm_sql_settings = null;
+    use Traits\Rag;
+
     private static $instance = null;
     
     public static function instance() {
@@ -22,6 +25,9 @@ class Ai {
     public function __construct() {
         if (self::$instance !== null) return;
         self::$instance = $this;
+        
+        $this->register_rag_hooks();
+        
         add_action('rest_api_init', [$this, 'register_ai_routes']);
 
         
@@ -41,6 +47,35 @@ class Ai {
                 }
             }
             $this->register_skills_hooks();
+        }
+
+        add_action('wbai_update_models_cron', [$this, 'run_update_models_cron']);
+        
+        add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+    }
+
+    public function enqueue_admin_assets($hook) {
+        if ($hook === 'wizard-ai_page_wizard-ai-models') {
+            wp_enqueue_style('wbai-models-ui-css', WIZARD_AI_URL . 'modules/ai/assets/css/models-ui.css', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/css/models-ui.css'));
+            wp_enqueue_script('wbai-models-ui-js', WIZARD_AI_URL . 'modules/ai/assets/js/models-ui.js', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/js/models-ui.js'), true);
+        }
+        
+        if ($hook === 'wizard-ai_page_wizard-ai-skills') {
+            wp_enqueue_script('wbai-skills-ui-js', WIZARD_AI_URL . 'modules/ai/assets/js/skills-ui.js', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/js/skills-ui.js'), true);
+            wp_localize_script('wbai-skills-ui-js', 'waiSkillsData', [
+                'nonce' => wp_create_nonce('wp_rest'),
+                'apiUrl' => rest_url('wizard-blocks/v1/skills'),
+                'loading' => __('Loading...', 'wizard-ai'),
+                'noSkills' => __('No skills found. Create one!', 'wizard-ai'),
+                'saving' => __('Saving...', 'wizard-ai'),
+                'saveSkill' => __('Save Skill', 'wizard-ai'),
+                'saveSuccess' => __('Skill saved successfully!', 'wizard-ai'),
+                'confirmDelete' => __('Are you sure you want to delete this skill?', 'wizard-ai')
+            ]);
+        }
+        
+        if ($hook === 'wizard-ai_page_wizard-ai-abilities') {
+            wp_enqueue_script('wbai-abilities-ui-js', WIZARD_AI_URL . 'modules/ai/assets/js/abilities-ui.js', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/js/abilities-ui.js'), true);
         }
     }
     
@@ -84,6 +119,14 @@ class Ai {
             'manage_options',
             'wizard-ai-skills',
             [$this, 'wb_ai_skills_page_html']
+        );
+        add_submenu_page(
+            'wizard-ai',
+            __('AI Models', 'wizard-ai'),
+            __('AI Models', 'wizard-ai'),
+            'manage_options',
+            'wizard-ai-models',
+            [$this, 'wb_ai_models_page_html']
         );
     }
     public function register_subplugins_providers() {
@@ -144,6 +187,11 @@ class Ai {
             'methods' => 'GET',
             'callback' => [$this, 'get_ai_models'],
             'permission_callback' => [$this, 'chat_permission_check']
+        ]);
+        register_rest_route('wizard-blocks/v1', '/ai-models/settings', [
+            'methods' => 'POST',
+            'callback' => [$this, 'save_ai_models_settings'],
+            'permission_callback' => function () { return current_user_can('manage_options'); }
         ]);
         register_rest_route('wizard-blocks/v1', '/rollback-ai-action', [
             'methods' => 'POST',
@@ -343,6 +391,44 @@ class Ai {
         }
     }
 
+    public function save_ai_models_settings(\WP_REST_Request $request) {
+        $enabled_models = $request->get_param('enabled_models');
+        if (is_array($enabled_models)) {
+            update_option('wbai_enabled_models', $enabled_models);
+        }
+        
+        $cron_enabled = $request->get_param('cron_enabled');
+        if ($cron_enabled) {
+            if (!wp_next_scheduled('wbai_update_models_cron')) {
+                wp_schedule_event(time(), 'daily', 'wbai_update_models_cron');
+            }
+        } else {
+            $timestamp = wp_next_scheduled('wbai_update_models_cron');
+            if ($timestamp) {
+                wp_unschedule_event($timestamp, 'wbai_update_models_cron');
+            }
+        }
+
+        return new \WP_REST_Response(['success' => true], 200);
+    }
+
+    public function run_update_models_cron() {
+        if (!class_exists('\WordPress\AiClient\AiClient')) return;
+        $registry = \WordPress\AiClient\AiClient::defaultRegistry();
+        foreach ($registry->getRegisteredProviderIds() as $providerId) {
+            try {
+                $className = $registry->getProviderClassName($providerId);
+                $directory = $className::modelMetadataDirectory();
+                if ($directory instanceof \WordPress\AiClient\Common\Contracts\CachesDataInterface) {
+                    $directory->invalidateCaches();
+                }
+            } catch (\Exception $e) {}
+        }
+        
+        $requirements = new \WordPress\AiClient\Providers\Models\DTO\ModelRequirements([], []);
+        $registry->findModelsMetadataForSupport($requirements);
+    }
+
     public function get_ai_models(\WP_REST_Request $request) {
         if (class_exists('\WordPress\AiClient\AiClient')) {
             // Providers are automatically loaded via register_subplugins_providers on init
@@ -395,17 +481,24 @@ class Ai {
             );
             $providerModels = $registry->findModelsMetadataForSupport($requirements);
             
+            $enabled_models = get_option('wbai_enabled_models', []);
             $models = [];
             foreach ($providerModels as $providerMetadata) {
                 $providerName = $providerMetadata->getProvider()->getName();
-                if (!isset($models[$providerName])) {
-                    $models[$providerName] = [];
-                }
                 foreach ($providerMetadata->getModels() as $modelMeta) {
                     $id = $modelMeta->getId();
                     $name = $modelMeta->getName() ?: $id;
                     $providerId = $providerMetadata->getProvider()->getId();
-                    $models[$providerName][$providerId . '|' . $id] = '[' . $providerName . '] ' . $name;
+                    $uid = $providerId . '|' . $id;
+                    
+                    if (!empty($enabled_models) && !in_array($uid, $enabled_models)) {
+                        continue;
+                    }
+
+                    if (!isset($models[$providerName])) {
+                        $models[$providerName] = [];
+                    }
+                    $models[$providerName][$uid] = '[' . $providerName . '] ' . $name;
                 }
             }
             

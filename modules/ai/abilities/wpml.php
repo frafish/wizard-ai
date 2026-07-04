@@ -1,5 +1,5 @@
 <?php
-namespace WizardAi\Modules\Ai\Traits\Abilities;
+namespace WizardAi\Modules\Ai\Abilities;
 
 trait Wpml {
     public function register_wpml_abilities() {

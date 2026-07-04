@@ -8,21 +8,19 @@
 
 if ( ! defined( 'ABSPATH' ) ) {
     // If running as standalone script, try to bootstrap WP
-    $wp_load_path = dirname(__FILE__, 5) . '/wp-load.php';
+    $wp_load_path = dirname(__FILE__, 6) . '/wp-load.php';
     if (!file_exists($wp_load_path)) {
         die("Error: wp-load.php not found. Must be run within WordPress or provide correct path.\n");
     }
     require_once $wp_load_path;
 }
 
-require_once dirname(__FILE__) . '/traits/processors.php';
-require_once dirname(__FILE__) . '/traits/embeddings.php';
-require_once dirname(__FILE__) . '/traits/exporter.php';
+require_once dirname(__FILE__) . '/traits/rag-processors.php';
+require_once dirname(__FILE__) . '/traits/rag-embeddings.php';
 
 class WizardAI_RAG_Embeddings_Cron {
     use WizardAI_RAG_Processors;
     use WizardAI_RAG_Embeddings;
-    use WizardAI_RAG_Exporter;
 
     private $db;
     private $db_dir;

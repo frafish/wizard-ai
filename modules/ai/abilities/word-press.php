@@ -1,5 +1,5 @@
 <?php
-namespace WizardAi\Modules\Ai\Traits\Abilities;
+namespace WizardAi\Modules\Ai\Abilities;
 
 trait WordPress {
     public function register_wordpress_abilities() {

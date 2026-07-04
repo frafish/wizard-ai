@@ -1,5 +1,5 @@
 <?php
-namespace WizardAi\Modules\Ai\Traits\Abilities;
+namespace WizardAi\Modules\Ai\Abilities;
 
 trait WizardBlocks {
     public function register_wizard_blocks_abilities() {

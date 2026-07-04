@@ -2,11 +2,11 @@
 namespace WizardAi\Modules\Ai;
 
 class Abilities {
-    use Traits\Abilities\Core;
-    use Traits\Abilities\WordPress;
-    use Traits\Abilities\WooCommerce;
-    use Traits\Abilities\Wpml;
-    use Traits\Abilities\WizardBlocks;
+    use Abilities\Core;
+    use Abilities\WordPress;
+    use Abilities\WooCommerce;
+    use Abilities\Wpml;
+    use Abilities\WizardBlocks;
 
     public function __construct() {
         if (function_exists('wp_register_ability_category')) {

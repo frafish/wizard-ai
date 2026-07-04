@@ -47,7 +47,7 @@ add_action('plugins_loaded', function() {
     new \WizardAi\Modules\Markdown\Markdown();
     new \WizardAi\Modules\Mcp\Mcp();
     new \WizardAi\Modules\Wpml\Wpml();
-    new \WizardAi\Modules\Rag\Rag();
+
 });
 
 
