@@ -29,22 +29,22 @@ class Wpml {
     }
 
     public function register_wpml_translate_route() {
-        register_rest_route('wizard-blocks/v1', '/wpml-translate', [
+        register_rest_route('wizard-ai/v1', '/wpml-translate', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_wpml_translate'],
             'permission_callback' => function () { return current_user_can('edit_posts'); }
         ]);
-        register_rest_route('wizard-blocks/v1', '/wpml-get-missing', [
+        register_rest_route('wizard-ai/v1', '/wpml-get-missing', [
             'methods' => 'GET',
             'callback' => [$this, 'handle_wpml_get_missing'],
             'permission_callback' => function () { return current_user_can('edit_posts'); }
         ]);
-        register_rest_route('wizard-blocks/v1', '/wpml-strings-get-missing', [
+        register_rest_route('wizard-ai/v1', '/wpml-strings-get-missing', [
             'methods' => 'GET',
             'callback' => [$this, 'handle_wpml_strings_get_missing'],
             'permission_callback' => function () { return current_user_can('edit_posts'); }
         ]);
-        register_rest_route('wizard-blocks/v1', '/wpml-strings-translate', [
+        register_rest_route('wizard-ai/v1', '/wpml-strings-translate', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_wpml_strings_translate'],
             'permission_callback' => function () { return current_user_can('edit_posts'); }

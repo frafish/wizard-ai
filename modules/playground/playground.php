@@ -8,6 +8,7 @@ class Playground {
     use Traits\Context;
     use Traits\Chat;
     use Traits\SafeMode;
+    use Traits\Automation;
 
     private static $instance = null;
 
@@ -23,6 +24,9 @@ class Playground {
         self::$instance = $this;
         if (method_exists($this, 'register_playground_hooks')) {
             $this->register_playground_hooks();
+        }
+        if (method_exists($this, 'register_automation_hooks')) {
+            $this->register_automation_hooks();
         }
     }
 }

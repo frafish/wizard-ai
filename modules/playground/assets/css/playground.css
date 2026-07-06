@@ -35,7 +35,7 @@
     border: 1px solid #c3c4c7;
     border-radius: 4px;
     cursor: pointer;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -124,6 +124,7 @@
     padding: 30px;
     padding-right: 50px;
     resize: none;
+    box-shadow: 0 0 60px var(--wp-admin-theme-color-darker-10);
 }
 
 #wai-speech-to-text {
@@ -162,6 +163,8 @@
     padding: 4px 8px;
     background: #efefef;
     border-radius: 8px;
+    position: relative;
+    z-index: 1;
 }
 
 .wai-toolbar-left {

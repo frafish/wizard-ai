@@ -134,7 +134,7 @@ trait Contents {
                 btn.prop('disabled', true).text('Scanning...');
                 
                 $.ajax({
-                    url: '<?php echo esc_url_raw(rest_url('wizard-blocks/v1/wpml-get-missing')); ?>',
+                    url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-get-missing')); ?>',
                     method: 'GET',
                     data: { type: typeStr, target_lang: lang, status: statusVal },
                     beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>'); },
@@ -241,7 +241,7 @@ trait Contents {
                 $('#item-'+item.id).css('background', '#fff8e5');
                 
                 $.ajax({
-                    url: '<?php echo esc_url_raw(rest_url('wizard-blocks/v1/wpml-translate')); ?>',
+                    url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-translate')); ?>',
                     method: 'POST',
                     data: {
                         object_id: item.id,
@@ -541,7 +541,7 @@ trait Contents {
                 $btn.prop('disabled', true);
                 
                 $.ajax({
-                    url: '<?php echo esc_url_raw(rest_url('wizard-blocks/v1/wpml-translate')); ?>',
+                    url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-translate')); ?>',
                     method: 'POST',
                     headers: { 'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>' },
                     data: {
@@ -580,7 +580,7 @@ trait Contents {
                 $btn.prop('disabled', true);
                 
                 $.ajax({
-                    url: '<?php echo esc_url_raw(rest_url('wizard-blocks/v1/wpml-translate')); ?>',
+                    url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-translate')); ?>',
                     method: 'POST',
                     headers: { 'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>' },
                     data: {
@@ -1234,36 +1234,43 @@ trait Contents {
         $last_exception = null;
         
         foreach ($models_to_try as $model_parts) {
-            try {
-                $ai_query = \WordPress\AiClient\AiClient::prompt([
-                    new \WordPress\AiClient\Messages\DTO\UserMessage([
-                        new \WordPress\AiClient\Messages\DTO\MessagePart($prompt)
-                    ])
-                ]);
-                
-                $ai_query->usingModelPreference($model_parts);
-                $ai_query->asJsonResponse();
-                $res = $ai_query->generateResult();
-                $text = $res->toText();
-                $text = trim(str_replace(['```json', '```'], '', $text));
-                
-                $json = json_decode($text, true);
-                if ($json) {
-                    return $json; 
-                } else {
-                    throw new \Exception("Invalid JSON returned from model. Raw text: " . $text);
+            $max_retries = 2;
+            for ($attempt = 0; $attempt <= $max_retries; $attempt++) {
+                try {
+                    $ai_query = \WordPress\AiClient\AiClient::prompt([
+                        new \WordPress\AiClient\Messages\DTO\UserMessage([
+                            new \WordPress\AiClient\Messages\DTO\MessagePart($prompt)
+                        ])
+                    ]);
+                    
+                    $ai_query->usingModelPreference($model_parts);
+                    $ai_query->asJsonResponse();
+                    $res = $ai_query->generateResult();
+                    $text = $res->toText();
+                    $text = trim(str_replace(['```json', '```'], '', $text));
+                    
+                    $json = json_decode($text, true);
+                    if ($json) {
+                        return $json; 
+                    } else {
+                        throw new \Exception("Invalid JSON returned from model. Raw text: " . $text);
+                    }
+                } catch (\Exception $e) {
+                    $last_exception = $e;
+                    $msg = strtolower($e->getMessage());
+                    
+                    if (strpos($msg, 'token') !== false || strpos($msg, 'quota') !== false || strpos($msg, 'credit') !== false || strpos($msg, 'rate') !== false || strpos($msg, 'limit') !== false || strpos($msg, '429') !== false || strpos($msg, '408') !== false || strpos($msg, '500') !== false || strpos($msg, '502') !== false || strpos($msg, '503') !== false || strpos($msg, 'timeout') !== false) {
+                        $this->log_error("Attempt " . ($attempt + 1) . " - API Error for model " . implode('|', $model_parts) . ": " . $e->getMessage());
+                        if ($attempt < $max_retries) {
+                            sleep(2);
+                            continue;
+                        }
+                    } else {
+                        $this->log_error("Model " . implode('|', $model_parts) . " failed: " . $e->getMessage());
+                    }
+                    
+                    break;
                 }
-            } catch (\Exception $e) {
-                $last_exception = $e;
-                $msg = strtolower($e->getMessage());
-                
-                if (strpos($msg, 'token') !== false || strpos($msg, 'quota') !== false || strpos($msg, 'credit') !== false || strpos($msg, 'rate') !== false || strpos($msg, 'limit') !== false) {
-                    $this->log_error("API Limit/Token Error for model " . implode('|', $model_parts) . ": " . $e->getMessage());
-                } else {
-                    $this->log_error("Model " . implode('|', $model_parts) . " failed: " . $e->getMessage());
-                }
-                
-                continue;
             }
         }
         

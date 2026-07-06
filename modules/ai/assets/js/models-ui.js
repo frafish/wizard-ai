@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const cron_enabled = document.getElementById('wai-cron-enabled').checked;
 
-            fetch('/?rest_route=/wizard-blocks/v1/ai-models/settings', {
+            fetch('/?rest_route=/wizard-ai/v1/ai-models/settings', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', function() {
             spinner.classList.add('is-active');
             triggerBtn.disabled = true;
             
-            fetch('/?rest_route=/wizard-blocks/v1/ai-models&refresh=1', {
+            fetch('/?rest_route=/wizard-ai/v1/ai-models&refresh=1', {
                 method: 'GET',
                 headers: {
                     'X-WP-Nonce': wpApiSettings.nonce

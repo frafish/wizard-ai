@@ -12,12 +12,12 @@ trait Init {
 
 
     public function register_playground_routes() {
-        register_rest_route('wizard-blocks/v1', '/ai-chat', [
+        register_rest_route('wizard-ai/v1', '/ai-chat', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_chat_request'],
             'permission_callback' => [\WizardAi\Modules\Ai\Ai::instance(), 'chat_permission_check']
         ]);
-        register_rest_route('wizard-blocks/v1', '/toggle-safe-mode', [
+        register_rest_route('wizard-ai/v1', '/toggle-safe-mode', [
             'methods' => 'POST',
             'callback' => [$this, 'toggle_safe_mode'],
             'permission_callback' => function () { return current_user_can('manage_options'); }

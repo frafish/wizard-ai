@@ -96,7 +96,7 @@ function initAiModal() {
 
     const modelSelect = document.getElementById('ai-model-select');
     if (modelSelect) {
-        fetch(wizardData.rest_url + 'wizard-blocks/v1/ai-models', {
+        fetch(wizardData.rest_url + 'wizard-ai/v1/ai-models', {
             headers: { 'X-WP-Nonce': wizardData.nonce }
         })
         .then(res => res.json())
@@ -229,9 +229,9 @@ async function runAiGeneration() {
 
     try {
         const reqData = { block_json: fullBundle, prompt: prompt, model: selectedModel };
-        if (wizardData.debugMode) console.debug("[Wizard AI Block] Sending API request:", { url: wizardData.rest_url + 'wizard-blocks/v1/process-ai', data: reqData });
+        if (wizardData.debugMode) console.debug("[Wizard AI Block] Sending API request:", { url: wizardData.rest_url + 'wizard-ai/v1/process-ai', data: reqData });
 
-        const response = await fetch(wizardData.rest_url + 'wizard-blocks/v1/process-ai', {
+        const response = await fetch(wizardData.rest_url + 'wizard-ai/v1/process-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': wizardData.nonce },
             body: JSON.stringify(reqData)

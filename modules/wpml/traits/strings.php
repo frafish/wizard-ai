@@ -122,7 +122,7 @@ trait Strings {
                 btn.prop('disabled', true).text('Scanning...');
                 
                 $.ajax({
-                    url: '<?php echo esc_url_raw(rest_url('wizard-blocks/v1/wpml-strings-get-missing')); ?>',
+                    url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-strings-get-missing')); ?>',
                     method: 'GET',
                     data: { domain: domain, target_lang: lang },
                     beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>'); },
@@ -216,7 +216,7 @@ trait Strings {
                 $('#wai_bulk_strings_progress').text('Translating: ' + item.name + ' (' + pendingStrings.length + ' remaining...)');
                 
                 $.ajax({
-                    url: '<?php echo esc_url_raw(rest_url('wizard-blocks/v1/wpml-strings-translate')); ?>',
+                    url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-strings-translate')); ?>',
                     method: 'POST',
                     data: { string_id: item.id, target_lang: currentStringLang },
                     beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>'); },
@@ -345,25 +345,37 @@ trait Strings {
             $model_parts = explode('|', $model_str);
             if (count($model_parts) !== 2) continue;
             
-            try {
-                $ai_query = \WordPress\AiClient\AiClient::prompt([
-                    new \WordPress\AiClient\Messages\DTO\UserMessage([
-                        new \WordPress\AiClient\Messages\DTO\MessagePart($prompt)
-                    ])
-                ]);
-                
-                $ai_query->usingModelPreference($model_parts);
-                $res = $ai_query->generateResult();
-                $text = $res->toText();
-                
-                if (!empty($text)) {
-                    return $text; 
-                } else {
-                    throw new \Exception("Empty text returned from model.");
+            $max_retries = 2;
+            for ($attempt = 0; $attempt <= $max_retries; $attempt++) {
+                try {
+                    $ai_query = \WordPress\AiClient\AiClient::prompt([
+                        new \WordPress\AiClient\Messages\DTO\UserMessage([
+                            new \WordPress\AiClient\Messages\DTO\MessagePart($prompt)
+                        ])
+                    ]);
+                    
+                    $ai_query->usingModelPreference($model_parts);
+                    $res = $ai_query->generateResult();
+                    $text = $res->toText();
+                    
+                    if (!empty($text)) {
+                        return $text; 
+                    } else {
+                        throw new \Exception("Empty text returned from model.");
+                    }
+                } catch (\Exception $e) {
+                    $last_exception = $e;
+                    $msg = strtolower($e->getMessage());
+                    
+                    if (strpos($msg, 'token') !== false || strpos($msg, 'quota') !== false || strpos($msg, 'credit') !== false || strpos($msg, 'rate') !== false || strpos($msg, 'limit') !== false || strpos($msg, '429') !== false || strpos($msg, '408') !== false || strpos($msg, '500') !== false || strpos($msg, '502') !== false || strpos($msg, '503') !== false || strpos($msg, 'timeout') !== false) {
+                        if ($attempt < $max_retries) {
+                            sleep(2);
+                            continue;
+                        }
+                    }
+                    
+                    break;
                 }
-            } catch (\Exception $e) {
-                $last_exception = $e;
-                continue;
             }
         }
         

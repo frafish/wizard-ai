@@ -25,7 +25,7 @@ trait Ui {
         }
 
         wp_localize_script('wizard-ai-chatbot-script', 'wizardAiChatbotData', [
-            'rest_url' => esc_url_raw(rest_url('wizard-blocks/v1/chatbot')),
+            'rest_url' => esc_url_raw(rest_url('wizard-ai/v1/chatbot')),
             'nonce' => wp_create_nonce('wp_rest'),
             'debugMode' => (defined('WP_DEBUG') && WP_DEBUG),
             'resetConfirm' => __('Are you sure you want to start a new chat?', 'wizard-ai'),

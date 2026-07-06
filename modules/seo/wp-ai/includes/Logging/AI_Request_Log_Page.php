@@ -45,10 +45,10 @@ class AI_Request_Log_Page {
 	public function register_menu(): void {
 		$page_hook = add_submenu_page(
 			'wizard-ai',
-			__( 'AI Request Logs', 'ai' ),
-			__( 'AI Request Logs', 'ai' ),
+			__( 'AI Tokens Log', 'wizard-ai' ),
+			__( 'AI Tokens Log', 'wizard-ai' ),
 			'manage_options',
-			self::PAGE_SLUG,
+			'ai-tokens-log',
 			array( $this, 'render_page' )
 		);
 
@@ -122,8 +122,29 @@ class AI_Request_Log_Page {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+
+		if ( isset( $_POST['wbai_budget_cap_nonce'] ) && wp_verify_nonce( $_POST['wbai_budget_cap_nonce'], 'wbai_save_budget_cap' ) ) {
+			$budget_cap = isset( $_POST['wbai_token_budget_cap'] ) ? intval( $_POST['wbai_token_budget_cap'] ) : 0;
+			update_option( 'wbai_token_budget_cap', $budget_cap );
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Budget cap updated.', 'wizard-ai' ) . '</p></div>';
+		}
+
+		$current_cap = get_option( 'wbai_token_budget_cap', 0 );
 		?>
 		<div class="wrap ai-request-logs">
+			<h1 class="wp-heading-inline"><?php esc_html_e( 'Ai Tokens log', 'wizard-ai' ); ?></h1>
+			<hr class="wp-header-end">
+			
+			<div style="background: #fff; padding: 15px; border: 1px solid #ccd0d4; margin-bottom: 20px; box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+				<form method="post" action="" style="display: flex; align-items: center; gap: 15px;">
+					<?php wp_nonce_field( 'wbai_save_budget_cap', 'wbai_budget_cap_nonce' ); ?>
+					<strong><?php esc_html_e( 'Monthly Token Budget Cap:', 'wizard-ai' ); ?></strong>
+					<input type="number" name="wbai_token_budget_cap" value="<?php echo esc_attr( $current_cap ); ?>" min="0" step="1000" style="width: 150px;">
+					<span style="color: #666;"><?php esc_html_e( '(Set to 0 to disable. All Agent tools will stop if this token limit is exceeded).', 'wizard-ai' ); ?></span>
+					<button type="submit" class="button button-primary"><?php esc_html_e( 'Save Cap', 'wizard-ai' ); ?></button>
+				</form>
+			</div>
+
 			<div id="ai-request-logs-root"></div>
 		</div>
 		<?php

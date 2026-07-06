@@ -23,8 +23,8 @@ trait SafeMode {
             "Description: Forces empty theme and disables other plugins on the Playground page.\n" .
             "*/\n" .
             "\$is_playground_page = isset(\$_GET['page']) && \$_GET['page'] === 'wizard-ai';\n" .
-            "\$is_ai_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-blocks/v1/ai') !== false;\n" .
-            "\$is_toggle_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-blocks/v1/toggle-safe-mode') !== false;\n" .
+            "\$is_ai_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-ai/v1/ai') !== false;\n" .
+            "\$is_toggle_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-ai/v1/toggle-safe-mode') !== false;\n" .
             "\$enforce_ai = file_exists(ABSPATH . '.wb_ai_safe') || (isset(\$_GET['wai_enforce_safe_mode']) && \$_GET['wai_enforce_safe_mode'] === '1');\n" .
             "\$is_ai_redirect = (\$_SERVER['REQUEST_URI'] ?? '') === '/wai' || (\$_SERVER['REQUEST_URI'] ?? '') === '/wai/';\n" .
             "if (\$is_ai_redirect) {\n" .

@@ -12,12 +12,12 @@ trait Init {
 
         // Register REST API endpoints
         add_action('rest_api_init', function () {
-            register_rest_route('wizard-blocks/v1', '/optimize-media-seo', [
+            register_rest_route('wizard-ai/v1', '/optimize-media-seo', [
                 'methods' => 'POST',
                 'callback' => [$this, 'api_optimize_media_seo'],
                 'permission_callback' => function () { return current_user_can('edit_posts'); }
             ]);
-            register_rest_route('wizard-blocks/v1', '/save-seo-settings', [
+            register_rest_route('wizard-ai/v1', '/save-seo-settings', [
                 'methods' => 'POST',
                 'callback' => [$this, 'api_save_seo_settings'],
                 'permission_callback' => function () { return current_user_can('manage_options'); }

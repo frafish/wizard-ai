@@ -12,10 +12,6 @@ class Mcp {
 
     public function register_mcp_hooks() {
         add_action('admin_menu', [$this, 'add_mcp_menu']);
-        add_action('rest_api_init', [$this, 'register_mcp_routes']);
-    }
-
-    public function register_mcp_routes() {
         add_action('rest_api_init', [$this, 'init_mcp_routes']);
     }
 
@@ -33,28 +29,28 @@ class Mcp {
 
     public function init_mcp_routes() {
         // MCP JSON-RPC Endpoint (Stateless)
-        register_rest_route('wizard-blocks/v1', '/mcp', [
+        register_rest_route('wizard-ai/v1', '/mcp', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_mcp_request'],
             'permission_callback' => [$this, 'mcp_permission_check']
         ]);
 
         // OpenAPI Schema Endpoint (for GPT Custom Actions)
-        register_rest_route('wizard-blocks/v1', '/openapi.json', [
+        register_rest_route('wizard-ai/v1', '/openapi.json', [
             'methods' => 'GET',
             'callback' => [$this, 'generate_openapi_schema'],
             'permission_callback' => '__return_true'
         ]);
 
         // OpenAPI Tool Execution Endpoint
-        register_rest_route('wizard-blocks/v1', '/mcp/tool/(?P<tool_name>[a-zA-Z0-9_-]+)', [
+        register_rest_route('wizard-ai/v1', '/mcp/tool/(?P<tool_name>[a-zA-Z0-9_-]+)', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_openapi_tool_call'],
             'permission_callback' => [$this, 'mcp_permission_check']
         ]);
 
         // Webhook Receiver Endpoint for AI Logs
-        register_rest_route('wizard-blocks/v1', '/mcp/webhook', [
+        register_rest_route('wizard-ai/v1', '/mcp/webhook', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_webhook_request'],
             'permission_callback' => '__return_true'
@@ -62,6 +58,20 @@ class Mcp {
     }
 
     public function mcp_permission_check(\WP_REST_Request $request) {
+        // OAuth 2.1 Access Token Validation
+        $auth_header = $request->get_header('authorization');
+        if ($auth_header && preg_match('/^Bearer\s+(.+)$/i', $auth_header, $matches)) {
+            $token = $matches[1];
+            $ai = \WizardAi\Modules\Ai\Ai::instance();
+            if (method_exists($ai, 'validate_token')) {
+                $oauth_token = $ai->validate_token($token);
+                if ($oauth_token && isset($oauth_token['user_id'])) {
+                    wp_set_current_user($oauth_token['user_id']);
+                    return true;
+                }
+            }
+        }
+
         // Basic Application Password or Cookie Auth is handled by WP REST API natively.
         // We ensure the user is at least logged in, or we can use a custom token.
         $token = $request->get_header('X-WAI-MCP-TOKEN');
@@ -166,7 +176,7 @@ class Mcp {
                 'version' => '1.0.0'
             ],
             'servers' => [
-                ['url' => $site_url . '/wp-json/wizard-blocks/v1']
+                ['url' => $site_url . '/wp-json/wizard-ai/v1']
             ],
             'paths' => [],
             'components' => [
@@ -284,10 +294,10 @@ class Mcp {
                 <?php wp_nonce_field('wai_mcp_settings', 'wai_mcp_settings_nonce'); ?>
                 <table class="form-table">
                     <tr>
-                        <th scope="row"><?php esc_html_e('API Secret Token', 'wizard-ai'); ?></th>
+                        <th scope="row"><?php esc_html_e('Webhook & Custom Actions Token', 'wizard-ai'); ?></th>
                         <td>
                             <input type="text" name="wai_mcp_token" value="<?php echo esc_attr($token); ?>" class="regular-text">
-                            <p class="description"><?php esc_html_e('Use this token as X-WAI-MCP-TOKEN header for authentication.', 'wizard-ai'); ?></p>
+                            <p class="description"><?php esc_html_e('Legacy API token. Use this as X-WAI-MCP-TOKEN header for simple GPT Custom Actions and Webhooks.', 'wizard-ai'); ?></p>
                         </td>
                     </tr>
                 </table>
@@ -297,15 +307,26 @@ class Mcp {
             <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
                 <!-- Claude Configuration -->
                 <div class="postbox" style="flex: 1; min-width: 300px; padding: 20px;">
-                    <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('Claude Configuration (via MCP)', 'wizard-ai'); ?></h2>
-                    <p><?php esc_html_e('Integrate your site with Claude Desktop or Cursor via the Model Context Protocol (MCP).', 'wizard-ai'); ?></p>
-                    <ol style="margin-left: 1.5em;">
-                        <li><strong><?php esc_html_e('Locate Configuration:', 'wizard-ai'); ?></strong> <?php esc_html_e('Open your MCP client config (e.g., claude_desktop_config.json for Claude Desktop).', 'wizard-ai'); ?></li>
+                    <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('Claude Desktop (via OAuth MCP)', 'wizard-ai'); ?></h2>
+                    <p><?php esc_html_e('Wizard AI now supports native OAuth 2.1 authentication for Claude Desktop and Cursor. You can also connect via a static token if preferred.', 'wizard-ai'); ?></p>
+                    
+                    <h3 style="margin-bottom: 5px;"><?php esc_html_e('Method 1: OAuth 2.1 (Recommended)', 'wizard-ai'); ?></h3>
+                    <ol style="margin-left: 1.5em; margin-top: 5px;">
+                        <li><strong><?php esc_html_e('No API Keys needed!', 'wizard-ai'); ?></strong> <?php esc_html_e('Modern MCP clients can now connect dynamically using OAuth.', 'wizard-ai'); ?></li>
+                        <li><strong><?php esc_html_e('Authorization Server:', 'wizard-ai'); ?></strong> <?php esc_html_e('Point your client to the OAuth Server Metadata URL below:', 'wizard-ai'); ?></li>
+                    </ol>
+                    <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #0073aa; margin-bottom: 15px; font-family: monospace; overflow-x: auto;">
+                        <strong>Issuer URL:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1'); ?><br><br>
+                        <strong>Metadata URL:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1/.well-known/oauth-authorization-server'); ?>
+                    </div>
+                    
+                    <h3 style="margin-bottom: 5px; margin-top: 20px;"><?php esc_html_e('Method 2: Static Token (Legacy)', 'wizard-ai'); ?></h3>
+                    <ol style="margin-left: 1.5em; margin-top: 5px;">
                         <li><strong><?php esc_html_e('Set Up Bridge:', 'wizard-ai'); ?></strong> <?php esc_html_e('Since Claude Desktop natively uses stdio, use an HTTP-to-stdio bridge script to connect to this endpoint.', 'wizard-ai'); ?></li>
                         <li><strong><?php esc_html_e('Configure Connection:', 'wizard-ai'); ?></strong> <?php esc_html_e('Provide your client or bridge with the following connection details:', 'wizard-ai'); ?></li>
                     </ol>
-                    <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #0073aa; margin-bottom: 15px; font-family: monospace; overflow-x: auto;">
-                        <strong>Endpoint URL:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-blocks/v1/mcp'); ?><br><br>
+                    <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #72aee6; margin-bottom: 15px; font-family: monospace; overflow-x: auto;">
+                        <strong>Endpoint URL:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1/mcp'); ?><br><br>
                         <strong>Header Name:</strong> X-WAI-MCP-TOKEN<br>
                         <strong>Header Value:</strong> <?php echo esc_html($token); ?>
                     </div>
@@ -319,7 +340,7 @@ class Mcp {
                     <ol style="margin-left: 1.5em;">
                         <li><strong><?php esc_html_e('Create Action:', 'wizard-ai'); ?></strong> <?php esc_html_e('In ChatGPT, edit your Custom GPT, go to the Actions section, and click "Create new action".', 'wizard-ai'); ?></li>
                         <li><strong><?php esc_html_e('Import Schema:', 'wizard-ai'); ?></strong> <?php esc_html_e('Click "Import from URL", paste the link below, and click "Import":', 'wizard-ai'); ?>
-                            <input type="text" readonly value="<?php echo esc_url(get_site_url() . '/wp-json/wizard-blocks/v1/openapi.json'); ?>" class="large-text code" style="margin-top: 5px; width: 100%; display: block;" onclick="this.select();">
+                            <input type="text" readonly value="<?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1/openapi.json'); ?>" class="large-text code" style="margin-top: 5px; width: 100%; display: block;" onclick="this.select();">
                         </li>
                         <li><strong><?php esc_html_e('Setup Authentication:', 'wizard-ai'); ?></strong> <?php esc_html_e('Click the gear icon in the Authentication section and set:', 'wizard-ai'); ?>
                             <ul style="list-style-type: disc; margin-left: 20px; margin-top: 5px;">
@@ -338,7 +359,7 @@ class Mcp {
                     <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('AI Webhook Receiver', 'wizard-ai'); ?></h2>
                     <p><?php esc_html_e('Use this endpoint to let external AIs (or cron tasks) send logs and statuses directly to your WordPress backend.', 'wizard-ai'); ?></p>
                     <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #0073aa; margin-bottom: 15px; font-family: monospace; overflow-x: auto;">
-                        <strong>POST Endpoint:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-blocks/v1/mcp/webhook'); ?><br><br>
+                        <strong>POST Endpoint:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1/mcp/webhook'); ?><br><br>
                         <strong>Auth:</strong> Include "token": "<?php echo esc_html($token); ?>" in JSON body, OR header X-WAI-MCP-TOKEN.<br><br>
                         <strong>Payload Example:</strong><br>
                         {<br>
@@ -351,6 +372,64 @@ class Mcp {
                     </div>
                     <p><em><?php esc_html_e('Logs sent here will appear as Comments (type: wai_log) in WordPress. If you provide a post_id, the comment will be attached to that specific post.', 'wizard-ai'); ?></em></p>
                 </div>
+                <!-- Antigravity / Cursor Configuration -->
+                <div class="postbox" style="flex: 1; min-width: 300px; padding: 20px;">
+                    <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('Antigravity / Cursor Configuration', 'wizard-ai'); ?></h2>
+                    <p><?php esc_html_e('Configure advanced AI coding assistants like Antigravity to use this MCP Server directly via the filesystem using CLI.', 'wizard-ai'); ?></p>
+                    <ol style="margin-left: 1.5em; margin-top: 5px;">
+                        <li><strong><?php esc_html_e('Step 1: Initial System Prompt (The Rules)', 'wizard-ai'); ?></strong><br>
+                            <?php esc_html_e('Copy and paste this instruction when starting a new chat:', 'wizard-ai'); ?>
+                            <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
+                                You are managing a WordPress site that exposes an MCP Server over REST API. You must communicate with it by using your terminal/command tools to execute `curl` requests.<br><br>
+                                <strong>Endpoint:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1/mcp'); ?><br>
+                                <strong>Authentication Header:</strong> X-WAI-MCP-TOKEN: <?php echo esc_html($token); ?><br><br>
+                                If the REST API returns a 500 error, append `?wai_enforce_safe_mode=1` to the endpoint URL to bypass broken plugins and fix the fatal error safely.
+                            </div>
+                        </li>
+                        <li><strong><?php esc_html_e('Step 2: Listing Available Tools (Discovery)', 'wizard-ai'); ?></strong><br>
+                            <?php esc_html_e('Tell the AI to discover the tools:', 'wizard-ai'); ?>
+                            <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
+                                Use `curl` to send a POST request with the JSON-RPC method `tools/list` to discover what capabilities you have on this site.
+                            </div>
+                        </li>
+                        <li><strong><?php esc_html_e('Step 3: Executing a Tool (Action)', 'wizard-ai'); ?></strong><br>
+                            <?php esc_html_e('Once the tools are listed, you can ask the AI to perform an action using a JSON-RPC payload for `tools/call`. For example:', 'wizard-ai'); ?>
+                            <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
+                                Search the site for posts about 'AI Plugins' and read the content of the first result using the appropriate tools.
+                            </div>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Connected OAuth Applications -->
+            <div style="margin-top: 30px;">
+                <h2><?php esc_html_e('Connected OAuth Applications', 'wizard-ai'); ?></h2>
+                <?php
+                global $wpdb;
+                $clients_table = $wpdb->prefix . 'wizard_ai_oauth_clients';
+                if ($wpdb->get_var("SHOW TABLES LIKE '{$clients_table}'") === $clients_table) {
+                    $apps = $wpdb->get_results("SELECT * FROM {$clients_table} ORDER BY created DESC");
+                    if (empty($apps)) {
+                        echo '<p>' . esc_html__('No applications have connected via OAuth yet.', 'wizard-ai') . '</p>';
+                    } else {
+                        echo '<table class="wp-list-table widefat fixed striped">';
+                        echo '<thead><tr>';
+                        echo '<th>' . esc_html__('Application Name', 'wizard-ai') . '</th>';
+                        echo '<th>' . esc_html__('Client ID', 'wizard-ai') . '</th>';
+                        echo '<th>' . esc_html__('Connected On', 'wizard-ai') . '</th>';
+                        echo '</tr></thead><tbody>';
+                        foreach ($apps as $app) {
+                            echo '<tr>';
+                            echo '<td><strong>' . esc_html($app->client_name) . '</strong></td>';
+                            echo '<td><code>' . esc_html($app->client_id) . '</code></td>';
+                            echo '<td>' . esc_html($app->created) . '</td>';
+                            echo '</tr>';
+                        }
+                        echo '</tbody></table>';
+                    }
+                }
+                ?>
             </div>
 
             <!-- AI Logs Display -->

@@ -80,7 +80,7 @@ trait Ui {
         wp_enqueue_script('wizard-ai-agent-script', WIZARD_AI_URL . 'modules/editor/assets/js/agent.js', ['jquery'], filemtime(WIZARD_AI_PATH . 'modules/editor/assets/js/agent.js'), true);
         
         wp_localize_script('wizard-ai-agent-script', 'wizardAiAgentData', [
-            'rest_url' => esc_url_raw(rest_url('wizard-blocks/v1/ai-chat')),
+            'rest_url' => esc_url_raw(rest_url('wizard-ai/v1/ai-chat')),
             'nonce' => wp_create_nonce('wp_rest'),
             'screen' => $screen_base,
             'preferredModel' => get_user_meta(get_current_user_id(), '_wai_preferred_model', true),
@@ -103,6 +103,9 @@ trait Ui {
                 <select id="wai-agent-model-select" style="width: 100%;">
                     <option value="">Loading models...</option>
                 </select>
+                <label style="display: block; margin-top: 10px; font-size: 12px; color: #555;">
+                    <input type="checkbox" id="wai-agent-pass-theme" value="1" checked> Pass Theme Styles (Colors, Fonts)
+                </label>
             </div>
             <div id="wai-agent-body" style="display: none;">
                 <div id="wai-agent-messages">

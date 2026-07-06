@@ -10,7 +10,7 @@ trait Init {
     }
 
     public function register_chatbot_routes() {
-        register_rest_route('wizard-blocks/v1', '/chatbot', [
+        register_rest_route('wizard-ai/v1', '/chatbot', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_chatbot_request'],
             'permission_callback' => function(\WP_REST_Request $request) {
@@ -19,6 +19,14 @@ trait Init {
                     return new \WP_Error('rest_forbidden', __('Bot activity detected. Invalid nonce.', 'wizard-ai'), ['status' => 403]);
                 }
                 return true;
+            }
+        ]);
+
+        register_rest_route('wizard-ai/v1', '/chatbot/summarize-session', [
+            'methods' => 'POST',
+            'callback' => [$this, 'handle_summarize_session_request'],
+            'permission_callback' => function() {
+                return current_user_can('manage_options');
             }
         ]);
     }

@@ -12,12 +12,12 @@ class Seo {
             $this->register_seo_hooks();
         }
 
-        // Delay loading the cloned AI plugin until plugins_loaded
-        // This ensures any official AI plugin has already been included.
-        add_action('plugins_loaded', function() {
-            if (!class_exists('WordPress\AI\Main')) {
-                require_once __DIR__ . '/wp-ai/ai.php';
-            }
-        }, 9);
+        // We are already inside plugins_loaded (from wizard-ai.php)
+        if (!class_exists('WordPress\AI\Main')) {
+            require_once __DIR__ . '/wp-ai/ai.php';
+        }
+
+        add_filter('pre_option_wpai_features_enabled', function($default) { return '1'; });
+        add_filter('wpai_feature_ai-request-logging_enabled', '__return_true');
     }
 }

@@ -1,32 +1,53 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('wai-abilities-search');
-    const categorySelect = document.getElementById('wai-abilities-category-filter');
-    if (!searchInput || !categorySelect) return;
-
-    function filterTable() {
-        const nameFilter = searchInput.value.toLowerCase();
-        const categoryFilter = categorySelect.value;
-        const rows = document.querySelectorAll('#wai-abilities-table tbody tr.wai-ability-row');
+if (typeof jQuery !== 'undefined') {
+    jQuery(document).ready(function($) {
+        if (typeof window.AbilityExplorer !== 'undefined') return; // script loaded by WP-AI
         
-        rows.forEach(row => {
-            const nameEl = row.querySelector('.wai-ability-name');
-            const categoryEl = row.querySelector('.wai-ability-category');
-            if (nameEl && categoryEl) {
-                const name = nameEl.textContent.toLowerCase();
-                const category = categoryEl.textContent.toLowerCase();
-                
-                const matchName = name.includes(nameFilter);
-                const matchCategory = categoryFilter === '' || category === categoryFilter;
-                
-                if (matchName && matchCategory) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
+        $('#ability-test-invoke').on('click', function() {
+            var ability = $(this).data('ability');
+            var input = $('#ability-test-payload').val();
+            
+            var $resContainer = $('#ability-test-result-container');
+            var $res = $('#ability-test-result');
+            
+            $resContainer.show();
+            $res.html('<i>Loading...</i>');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'ai_ability_explorer_invoke',
+                    _ajax_nonce: waiAbilitiesData.nonce,
+                    ability: ability,
+                    input: input
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $res.html('<pre style="color:green;margin:0;">' + JSON.stringify(response.data.data, null, 2) + '</pre>');
+                    } else {
+                        $res.html('<pre style="color:red;margin:0;">' + JSON.stringify(response.data, null, 2) + '</pre>');
+                    }
+                },
+                error: function() {
+                    $res.html('<span style="color:red;">AJAX Error</span>');
                 }
-            }
+            });
         });
-    }
-
-    searchInput.addEventListener('input', filterTable);
-    categorySelect.addEventListener('change', filterTable);
-});
+        
+        $('#ability-test-clear').on('click', function() {
+            $('#ability-test-result-container').hide();
+            $('#ability-test-result').html('');
+        });
+        
+        $('.ability-copy-btn').on('click', function() {
+            var targetId = $(this).data('copy');
+            var text = document.getElementById(targetId).innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                var $btn = $(this);
+                var origText = $btn.text();
+                $btn.text('Copied!');
+                setTimeout(function(){ $btn.text(origText); }, 2000);
+            });
+        });
+    });
+}

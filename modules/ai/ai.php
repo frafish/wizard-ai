@@ -75,7 +75,11 @@ class Ai {
         }
         
         if ($hook === 'wizard-ai_page_wizard-ai-abilities') {
-            wp_enqueue_script('wbai-abilities-ui-js', WIZARD_AI_URL . 'modules/ai/assets/js/abilities-ui.js', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/js/abilities-ui.js'), true);
+            wp_enqueue_style('wbai-abilities-ui-css', WIZARD_AI_URL . 'modules/ai/assets/css/abilities-ui.css', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/css/abilities-ui.css'));
+            wp_enqueue_script('wbai-abilities-ui-js', WIZARD_AI_URL . 'modules/ai/assets/js/abilities-ui.js', ['jquery'], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/js/abilities-ui.js'), true);
+            wp_localize_script('wbai-abilities-ui-js', 'waiAbilitiesData', [
+                'nonce' => wp_create_nonce("ai_ability_explorer_invoke")
+            ]);
         }
     }
     
@@ -177,33 +181,33 @@ class Ai {
 
 
     public function register_ai_routes() {
-        register_rest_route('wizard-blocks/v1', '/process-ai', [
+        register_rest_route('wizard-ai/v1', '/process-ai', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_ai_request'],
             'permission_callback' => function () { return current_user_can('edit_posts'); }
         ]);
         
-        register_rest_route('wizard-blocks/v1', '/ai-models', [
+        register_rest_route('wizard-ai/v1', '/ai-models', [
             'methods' => 'GET',
             'callback' => [$this, 'get_ai_models'],
             'permission_callback' => [$this, 'chat_permission_check']
         ]);
-        register_rest_route('wizard-blocks/v1', '/ai-models/settings', [
+        register_rest_route('wizard-ai/v1', '/ai-models/settings', [
             'methods' => 'POST',
             'callback' => [$this, 'save_ai_models_settings'],
             'permission_callback' => function () { return current_user_can('manage_options'); }
         ]);
-        register_rest_route('wizard-blocks/v1', '/rollback-ai-action', [
+        register_rest_route('wizard-ai/v1', '/rollback-ai-action', [
             'methods' => 'POST',
             'callback' => [$this, 'rollback_ai_action'],
             'permission_callback' => function () { return current_user_can('manage_options'); }
         ]);
-        register_rest_route('wizard-blocks/v1', '/delete-ai-backups', [
+        register_rest_route('wizard-ai/v1', '/delete-ai-backups', [
             'methods' => 'POST',
             'callback' => [$this, 'delete_ai_backups'],
             'permission_callback' => function () { return current_user_can('manage_options'); }
         ]);
-        register_rest_route('wizard-blocks/v1', '/download-ai-backup', [
+        register_rest_route('wizard-ai/v1', '/download-ai-backup', [
             'methods' => 'GET',
             'callback' => [$this, 'download_ai_backup'],
             'permission_callback' => function () { return current_user_can('manage_options'); }
@@ -397,6 +401,11 @@ class Ai {
             update_option('wbai_enabled_models', $enabled_models);
         }
         
+        $budget_cap = $request->get_param('budget_cap');
+        if (isset($budget_cap)) {
+            update_option('wbai_token_budget_cap', intval($budget_cap));
+        }
+
         $cron_enabled = $request->get_param('cron_enabled');
         if ($cron_enabled) {
             if (!wp_next_scheduled('wbai_update_models_cron')) {
@@ -410,6 +419,26 @@ class Ai {
         }
 
         return new \WP_REST_Response(['success' => true], 200);
+    }
+
+    public function check_budget_cap() {
+        $budget_cap = (int) get_option('wbai_token_budget_cap', 0);
+        if ($budget_cap <= 0) {
+            return true;
+        }
+
+        if (class_exists('\WordPress\AI\Logging\AI_Request_Log_Manager')) {
+            $manager = new \WordPress\AI\Logging\AI_Request_Log_Manager();
+            $manager->init();
+            $summary = $manager->get_summary('month');
+            $total_tokens = isset($summary['total_tokens']) ? (int) $summary['total_tokens'] : 0;
+            
+            if ($total_tokens >= $budget_cap) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     public function run_update_models_cron() {

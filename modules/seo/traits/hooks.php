@@ -20,7 +20,7 @@ trait Hooks {
                     spinner.addClass("is-active");
                     
                     $.ajax({
-                        url: "' . esc_url_raw(rest_url('wizard-blocks/v1/optimize-media-seo')) . '",
+                        url: "' . esc_url_raw(rest_url('wizard-ai/v1/optimize-media-seo')) . '",
                         method: "POST",
                         headers: { "X-WP-Nonce": "' . wp_create_nonce('wp_rest') . '" },
                         data: { attachment_id: "' . esc_js($post->ID) . '" },

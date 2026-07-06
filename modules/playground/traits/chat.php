@@ -181,7 +181,7 @@ trait Chat {
 
             $is_playground = in_array($object_type, ['toplevel_page_wizard-ai-playground', 'wizard-blocks_page_wizard-ai-playground']);
             if (!$is_playground && !empty($object_type)) {
-                $system_instruction .= "\n\nCRITICAL CONFINEMENT RULE: You are currently active as an embedded Agent inside a specific Page/Post editor (not the main Playground). You MUST strictly confine your actions to the current page/post you are editing. You are ONLY permitted to help the user edit the title, body content, meta fields, and publishing info (status, date, etc.) of the current page. DO NOT modify WordPress core, do NOT update plugins, and do NOT attempt to manage other areas of the site unless absolutely necessary to fulfill a local editor request.";
+                $system_instruction .= "\n\nCRITICAL CONFINEMENT RULE: You are currently active as an embedded Agent inside a specific Page/Post editor. You MUST NOT use PHP tools or database queries to directly update the `post_content` of the current post. Instead, you MUST output Gutenberg blocks in your final response using ```gutenberg-insert, ```gutenberg-edit, or ```gutenberg-replace markdown blocks, which the editor UI will automatically apply for the user. You may use tools to fetch data, modify metadata, or edit the title/status, but DO NOT save the main body blocks directly to the database. If THEME STYLES are provided in the context, you MUST use their CSS utility classes (e.g., `has-[slug]-color`, `has-[slug]-font-size`) instead of inventing inline styles or hex codes.";
             }
 
             $functions = [];

@@ -5,17 +5,17 @@ trait Skills {
 
     public function register_skills_hooks() {
         add_action('rest_api_init', function() {
-            register_rest_route('wizard-blocks/v1', '/skills', [
+            register_rest_route('wizard-ai/v1', '/skills', [
                 'methods' => 'GET',
                 'callback' => [$this, 'api_get_skills'],
                 'permission_callback' => function () { return current_user_can('manage_options'); }
             ]);
-            register_rest_route('wizard-blocks/v1', '/skills', [
+            register_rest_route('wizard-ai/v1', '/skills', [
                 'methods' => 'POST',
                 'callback' => [$this, 'api_save_skill'],
                 'permission_callback' => function () { return current_user_can('manage_options'); }
             ]);
-            register_rest_route('wizard-blocks/v1', '/skills', [
+            register_rest_route('wizard-ai/v1', '/skills', [
                 'methods' => 'DELETE',
                 'callback' => [$this, 'api_delete_skill'],
                 'permission_callback' => function () { return current_user_can('manage_options'); }

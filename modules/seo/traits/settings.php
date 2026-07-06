@@ -66,7 +66,7 @@ trait Settings {
         <script>
         jQuery(document).ready(function($) {
             // Load Models
-            fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-blocks/v1/ai-models?vision=1"))); ?>', {
+            fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-ai/v1/ai-models?vision=1"))); ?>', {
                 headers: { 'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>' }
             }).then(res => res.json()).then(data => {
                 if (data.success && data.models) {
@@ -84,7 +84,7 @@ trait Settings {
             });
 
             // Load Text Models
-            fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-blocks/v1/ai-models"))); ?>', {
+            fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-ai/v1/ai-models"))); ?>', {
                 headers: { 'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>' }
             }).then(res => res.json()).then(data => {
                 if (data.success && data.models) {
@@ -105,7 +105,7 @@ trait Settings {
                 const btn = $(this);
                 btn.prop('disabled', true).text('Saving...');
                 $.ajax({
-                    url: '<?php echo esc_js(esc_url_raw(rest_url("wizard-blocks/v1/save-seo-settings"))); ?>',
+                    url: '<?php echo esc_js(esc_url_raw(rest_url("wizard-ai/v1/save-seo-settings"))); ?>',
                     method: 'POST',
                     headers: { 'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>' },
                     data: {
@@ -151,7 +151,7 @@ trait Settings {
                     
                     try {
                         const res = await $.ajax({
-                            url: '<?php echo esc_js(esc_url_raw(rest_url("wizard-blocks/v1/optimize-media-seo"))); ?>',
+                            url: '<?php echo esc_js(esc_url_raw(rest_url("wizard-ai/v1/optimize-media-seo"))); ?>',
                             method: 'POST',
                             headers: { 'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>' },
                             data: {

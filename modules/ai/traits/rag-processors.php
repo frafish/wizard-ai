@@ -92,15 +92,6 @@ trait WizardAI_RAG_Processors {
             $content = strip_shortcodes($wp_post->post_content);
             $content = wp_strip_all_tags($content);
             
-            if ($wp_post->post_type === 'product' && function_exists('wc_get_product')) {
-                $product = wc_get_product($post_id);
-                if ($product) {
-                    $content .= "\nProduct Price: " . $product->get_price();
-                    $content .= "\nProduct SKU: " . $product->get_sku();
-                    $content .= "\nStock Status: " . $product->get_stock_status();
-                }
-            }
-            
             if (empty(trim($content))) continue;
             
             $content_hash = md5($content . $wp_post->post_title);
@@ -291,6 +282,17 @@ trait WizardAI_RAG_Processors {
         $data = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $row['embedding'] = json_decode($row['embedding'], true);
+            
+            // Dynamic WooCommerce Enrichment
+            if ($row['post_type'] === 'product' && function_exists('wc_get_product')) {
+                $product = wc_get_product($row['post_id']);
+                if ($product) {
+                    $row['text_content'] .= "\n[Live Data] Product Price: " . $product->get_price();
+                    $row['text_content'] .= "\n[Live Data] Product SKU: " . $product->get_sku();
+                    $row['text_content'] .= "\n[Live Data] Stock Status: " . $product->get_stock_status();
+                }
+            }
+            
             $data[] = $row;
         }
 

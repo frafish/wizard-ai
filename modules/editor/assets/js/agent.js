@@ -195,7 +195,27 @@ jQuery(document).ready(function($) {
         if (window.elementor) {
             context += "CRITICAL INSTRUCTION: You are interacting directly with the active Elementor Editor. To INSERT or APPEND new widgets or sections, you MUST output a JSON representation of the Elementor models inside an ```elementor-insert code block. Do NOT use standard ```json blocks. The JSON must be an array of Elementor models or a single model. Example:\n```elementor-insert\n{\n  \"id\": \"abc1234\",\n  \"elType\": \"section\",\n  \"elements\": [\n    {\n      \"id\": \"def5678\",\n      \"elType\": \"column\",\n      \"elements\": [\n        {\n          \"id\": \"xyz9876\",\n          \"elType\": \"widget\",\n          \"widgetType\": \"heading\",\n          \"settings\": { \"title\": \"Hello World\" }\n        }\n      ]\n    }\n  ]\n}\n```\nCRITICAL WIDGET PROPERTIES:\n- For 'text-editor' widgets, the HTML text MUST be placed in `settings.editor` (e.g. `\"settings\": { \"editor\": \"<p>My text</p>\" }`). Do not use 'content' or 'text'.\n- For 'image' widgets, use `settings.image.url` (e.g. `\"settings\": { \"image\": { \"url\": \"https://example.com/image.jpg\" } }`).\nTo completely REPLACE the entire page content, use an ```elementor-replace code block.\nThe system will parse this JSON and inject it into the editor in real-time.\n";
         } else if (typeof wp !== 'undefined' && wp.data && wp.data.select('core/block-editor')) {
-            const blocks = wp.data.select('core/block-editor').getBlocks();
+            const blockEditorData = wp.data.select('core/block-editor');
+            const blocks = blockEditorData.getBlocks();
+            
+            const passTheme = document.getElementById('wai-agent-pass-theme');
+            if (passTheme && passTheme.checked) {
+                const settings = blockEditorData.getSettings();
+                if (settings) {
+                    let themeContext = "THEME STYLES (theme.json):\n";
+                    if (settings.colors && settings.colors.length > 0) {
+                        themeContext += "- Colors: " + settings.colors.map(c => `${c.name} (has-${c.slug}-color)`).join(", ") + "\n";
+                    }
+                    if (settings.fontSizes && settings.fontSizes.length > 0) {
+                        themeContext += "- Font Sizes: " + settings.fontSizes.map(f => `${f.name} (has-${f.slug}-font-size)`).join(", ") + "\n";
+                    }
+                    if (settings.spacingSizes && settings.spacingSizes.length > 0) {
+                        themeContext += "- Spacing Sizes: " + settings.spacingSizes.map(s => `${s.name} (${s.slug})`).join(", ") + "\n";
+                    }
+                    context += themeContext + "\n";
+                }
+            }
+
             
             function findPostContentClientId(blocksList) {
                 if (!blocksList) return null;
@@ -364,7 +384,7 @@ jQuery(document).ready(function($) {
                                 const items = Array.isArray(models) ? models : [models];
                                 console.log("[Wizard AI] Elementor models to inject:", items);
                                 
-                                if (aiResponse.toLowerCase().includes('```elementor-replace')) {
+                                if (aiResponse.toLowerCase().includes('```elementor-replace') || aiResponse.toLowerCase().includes('language-elementor-replace')) {
                                     if (window.elementor && window.elementor.getPreviewView) {
                                         const previewView = window.elementor.getPreviewView();
                                         if (previewView.collection) {
@@ -473,13 +493,13 @@ jQuery(document).ready(function($) {
                                 
                                 const postContentClientId = findPostContentClientId(blockEditorData.getBlocks());
 
-                                if (aiResponse.toLowerCase().includes('```gutenberg-replace')) {
+                                if (aiResponse.toLowerCase().includes('```gutenberg-replace') || aiResponse.toLowerCase().includes('language-gutenberg-replace')) {
                                     if (postContentClientId) {
                                         blockEditorDispatch.replaceInnerBlocks(postContentClientId, injectedBlocks);
                                     } else {
                                         blockEditorDispatch.resetBlocks(injectedBlocks);
                                     }
-                                } else if (aiResponse.toLowerCase().includes('```gutenberg-edit')) {
+                                } else if (aiResponse.toLowerCase().includes('```gutenberg-edit') || aiResponse.toLowerCase().includes('language-gutenberg-edit')) {
                                     if (lastSelectedBlockClientIds && lastSelectedBlockClientIds.length > 0) {
                                         blockEditorDispatch.replaceBlocks(lastSelectedBlockClientIds, injectedBlocks);
                                     } else {

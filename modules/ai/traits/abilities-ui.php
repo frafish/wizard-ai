@@ -468,65 +468,6 @@ trait AbilitiesUi {
             <?php echo wp_json_encode($ability['input_schema'], JSON_HEX_TAG | JSON_UNESCAPED_UNICODE); ?>
         </script>
         <?php
-        
-        // Output inline script if Asset_Loader fails to load
-        ?>
-        <script>
-            if (typeof jQuery !== 'undefined') {
-                jQuery(document).ready(function($) {
-                    if (typeof window.AbilityExplorer !== 'undefined') return; // script loaded by WP-AI
-                    
-                    $('#ability-test-invoke').on('click', function() {
-                        var ability = $(this).data('ability');
-                        var input = $('#ability-test-payload').val();
-                        
-                        var $resContainer = $('#ability-test-result-container');
-                        var $res = $('#ability-test-result');
-                        
-                        $resContainer.show();
-                        $res.html('<i>Loading...</i>');
-                        
-                        $.ajax({
-                            url: ajaxurl,
-                            type: 'POST',
-                            data: {
-                                action: 'ai_ability_explorer_invoke',
-                                _ajax_nonce: '<?php echo wp_create_nonce("ai_ability_explorer_invoke"); ?>',
-                                ability: ability,
-                                input: input
-                            },
-                            success: function(response) {
-                                if (response.success) {
-                                    $res.html('<pre style="color:green;margin:0;">' + JSON.stringify(response.data.data, null, 2) + '</pre>');
-                                } else {
-                                    $res.html('<pre style="color:red;margin:0;">' + JSON.stringify(response.data, null, 2) + '</pre>');
-                                }
-                            },
-                            error: function() {
-                                $res.html('<span style="color:red;">AJAX Error</span>');
-                            }
-                        });
-                    });
-                    
-                    $('#ability-test-clear').on('click', function() {
-                        $('#ability-test-result-container').hide();
-                        $('#ability-test-result').html('');
-                    });
-                    
-                    $('.ability-copy-btn').on('click', function() {
-                        var targetId = $(this).data('copy');
-                        var text = document.getElementById(targetId).innerText;
-                        navigator.clipboard.writeText(text).then(() => {
-                            var $btn = $(this);
-                            var origText = $btn.text();
-                            $btn.text('Copied!');
-                            setTimeout(function(){ $btn.text(origText); }, 2000);
-                        });
-                    });
-                });
-            }
-        </script>
-        <?php
     }
 
     private function generate_example_input($schema) {
@@ -558,27 +499,6 @@ trait AbilitiesUi {
         
         echo '<div class="wrap ability-explorer-wrap">';
         echo '<h1><span class="dashicons dashicons-superhero"></span> ' . esc_html__('AI Abilities', 'wizard-ai') . '</h1>';
-        ?>
-        <style>
-            .ability-explorer-stats{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin:16px 0 24px}
-            .ability-stat-card{background:#fff;border:1px solid #c3c4c7;border-radius:4px;box-shadow:0 1px 1px rgba(0,0,0,.04);padding:16px;text-align:center;text-decoration:none;color:inherit;transition:box-shadow .2s, border-color .2s;display:block;}
-            a.ability-stat-card:hover{border-color:#2271b1;box-shadow:0 1px 3px rgba(0,0,0,.1);}
-            .ability-stat-number{color:#2271b1;font-size:32px;font-weight:600;line-height:1.2;margin-bottom:8px}
-            .ability-stat-label{color:#1e1e1e;font-size:13px;font-weight:500;letter-spacing:.5px;text-transform:uppercase}
-            .ability-explorer-wrap .wp-list-table{border:1px solid #c3c4c7;box-shadow:0 1px 1px rgba(0,0,0,.04)}
-            .ability-explorer-wrap .wp-list-table td code{background:#f6f7f7;border-radius:3px;font-size:12px;padding:2px 8px}
-            .ability-explorer-wrap td.column-primary strong{display:block;font-size:14px;margin-bottom:.2em}
-            .ability-explorer-wrap .wp-list-table .column-provider{width:10%}
-            .ability-provider{align-items:center;border-radius:2px;display:inline-flex;font-size:12px;font-weight:500;justify-content:center;padding:2px 8px}
-            .ability-provider-core{background:#f0f6fc;border:1px solid #c5d9ed;color:#0a4b78}
-            .ability-provider-plugin,.ability-provider-theme{background:#f0f6fc;border:1px solid #c3c4c7;color:#1e1e1e}
-            .ability-schema-wrapper { position: relative; margin-top: 10px; }
-            .ability-schema-wrapper .ability-copy-btn { position: absolute; top: 10px; right: 10px; }
-            .ability-schema-wrapper pre { margin: 0; padding: 15px; background: #f6f7f7; border: 1px solid #ccd0d4; border-radius: 4px; overflow: auto; }
-            .ability-detail-section { background: var(--wp--preset--color--white,#fff); border: 1px solid var(--wp-admin-border-color,#c3c4c7); border-radius: 4px; box-shadow: 0 1px 1px rgba(0,0,0,.04); margin-bottom: 16px; margin-top: 24px; padding: 16px; }
-            .ability-detail-section h3 { margin-top: 0; margin-bottom: 12px; }
-        </style>
-        <?php
         
         if ($action === 'view') {
             $this->render_detail_view();

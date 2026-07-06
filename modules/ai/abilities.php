@@ -2,11 +2,6 @@
 namespace WizardAi\Modules\Ai;
 
 class Abilities {
-    use Abilities\Core;
-    use Abilities\WordPress;
-    use Abilities\WooCommerce;
-    use Abilities\Wpml;
-    use Abilities\WizardBlocks;
 
     public function __construct() {
         if (function_exists('wp_register_ability_category')) {
@@ -43,10 +38,22 @@ class Abilities {
     }
 
     public function register_abilities() {
-        $this->register_core_abilities();
-        $this->register_wordpress_abilities();
-        $this->register_woocommerce_abilities();
-        $this->register_wpml_abilities();
-        $this->register_wizard_blocks_abilities();
+        $registrar = new class {
+            use Abilities\Core;
+            use Abilities\WordPress;
+            use Abilities\WooCommerce;
+            use Abilities\Wpml;
+            use Abilities\WizardBlocks;
+        };
+
+        $registrar->register_core_abilities();
+        $registrar->register_wordpress_abilities();
+        $registrar->register_woocommerce_abilities();
+        $registrar->register_wpml_abilities();
+        $registrar->register_wizard_blocks_abilities();
+        
+        if (file_exists(WIZARD_AI_PATH . 'modules/ai/abilities/frontend-form.php')) {
+            require_once WIZARD_AI_PATH . 'modules/ai/abilities/frontend-form.php';
+        }
     }
 }

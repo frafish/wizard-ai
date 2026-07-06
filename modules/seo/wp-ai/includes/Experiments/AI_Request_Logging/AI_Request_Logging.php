@@ -37,6 +37,8 @@ class AI_Request_Logging extends Abstract_Feature {
 		return 'ai-request-logging';
 	}
 
+
+
 	/**
 	 * {@inheritDoc}
 	 */
@@ -61,7 +63,7 @@ class AI_Request_Logging extends Abstract_Feature {
 		$page       = new AI_Request_Log_Page( $manager );
 
 		add_action( 'rest_api_init', array( $controller, 'register_routes' ) );
-		add_action( 'admin_menu', array( $page, 'register_menu' ) );
+		add_action( 'admin_menu', array( $page, 'register_menu' ), 40 );
 	}
 
 	/**

@@ -63,7 +63,45 @@ trait Logs {
                 echo '<h3>' . sprintf(esc_html__('Session ID: %s', 'wizard-ai'), esc_html($session_id)) . '</h3>';
                 
                 $del_session_url = wp_nonce_url(admin_url('admin.php?page=wizard-ai-chatbot-logs&action=delete_session&session_id=' . urlencode($session_id)), 'wai_delete_log');
-                echo '<p><a href="' . esc_url($del_session_url) . '" class="button button-link-delete" onclick="return confirm(\'' . esc_js(__('Are you sure you want to delete this entire session?', 'wizard-ai')) . '\');" style="color: #b32d2e;">' . esc_html__('Delete Session', 'wizard-ai') . '</a></p>';
+                echo '<p>';
+                echo '<button id="wai_summarize_session_btn" class="button button-primary" data-session="' . esc_attr($session_id) . '" style="margin-right: 10px;">' . esc_html__('Summarize Session', 'wizard-ai') . '</button>';
+                echo '<a href="' . esc_url($del_session_url) . '" class="button button-link-delete" onclick="return confirm(\'' . esc_js(__('Are you sure you want to delete this entire session?', 'wizard-ai')) . '\');" style="color: #b32d2e;">' . esc_html__('Delete Session', 'wizard-ai') . '</a>';
+                echo '</p>';
+                echo '<div id="wai_session_summary_result" style="display:none; padding: 15px; background: #f0f6fc; border-left: 4px solid #72aee6; margin-bottom: 15px; border-radius: 4px;"></div>';
+                ?>
+                <script>
+                jQuery(document).ready(function($) {
+                    $('#wai_summarize_session_btn').on('click', function(e) {
+                        e.preventDefault();
+                        var btn = $(this);
+                        var sessionId = btn.data('session');
+                        btn.prop('disabled', true).text('<?php echo esc_js(__('Generating...', 'wizard-ai')); ?>');
+                        $('#wai_session_summary_result').hide().html('');
+                        
+                        $.ajax({
+                            url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/chatbot/summarize-session')); ?>',
+                            method: 'POST',
+                            data: { session_id: sessionId },
+                            beforeSend: function(xhr) {
+                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                            },
+                            success: function(response) {
+                                btn.prop('disabled', false).text('<?php echo esc_js(__('Summarize Session', 'wizard-ai')); ?>');
+                                if (response.success && response.summary) {
+                                    $('#wai_session_summary_result').html('<strong><?php echo esc_js(__('Session Digest:', 'wizard-ai')); ?></strong><br>' + response.summary).slideDown();
+                                } else {
+                                    alert(response.message || 'Error summarizing session.');
+                                }
+                            },
+                            error: function() {
+                                btn.prop('disabled', false).text('<?php echo esc_js(__('Summarize Session', 'wizard-ai')); ?>');
+                                alert('<?php echo esc_js(__('Failed to communicate with server.', 'wizard-ai')); ?>');
+                            }
+                        });
+                    });
+                });
+                </script>
+                <?php
                 
                 if ($session_user_id > 0) {
                     $user_link = get_edit_user_link($session_user_id);
@@ -197,5 +235,60 @@ trait Logs {
             }
         }
         echo '</div>';
+    }
+
+    public function handle_summarize_session_request(\WP_REST_Request $request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        if (empty($session_id)) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Missing session ID.', 'wizard-ai')], 400);
+        }
+
+        $comments = get_comments([
+            'type' => 'wai_chat',
+            'meta_key' => 'wai_session_id',
+            'meta_value' => $session_id,
+            'orderby' => 'comment_date_gmt',
+            'order' => 'ASC',
+            'status' => 'all'
+        ]);
+
+        if (empty($comments)) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('No messages found for this session.', 'wizard-ai')], 404);
+        }
+
+        $chat_transcript = "";
+        foreach ($comments as $c) {
+            $author = ($c->comment_author === 'Wizard AI') ? 'AI' : 'User';
+            $chat_transcript .= "{$author}: " . strip_tags($c->comment_content) . "\n";
+        }
+
+        if (!class_exists('\WordPress\AiClient\AiClient')) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('AI Client not available.', 'wizard-ai')], 500);
+        }
+
+        $prompt = "Please provide a brief and concise summary (digest) of the following chat session between a User and an AI Assistant. Highlight the main topics discussed and any conclusions or resolutions.\n\n";
+        $prompt .= "CHAT TRANSCRIPT:\n" . $chat_transcript;
+
+        try {
+            $ai_query = \WordPress\AiClient\AiClient::prompt([
+                new \WordPress\AiClient\Messages\DTO\UserMessage([
+                    new \WordPress\AiClient\Messages\DTO\MessagePart($prompt)
+                ])
+            ]);
+            $res = $ai_query->generateResult();
+            $summary = $res->toText();
+
+            // Format markdown to simple HTML for display
+            if (class_exists('Parsedown')) {
+                $parsedown = new \Parsedown();
+                $summary_html = $parsedown->text($summary);
+            } else {
+                $summary_html = nl2br(esc_html($summary));
+            }
+
+            return new \WP_REST_Response(['success' => true, 'summary' => wp_kses_post($summary_html)], 200);
+        } catch (\Exception $e) {
+            return new \WP_REST_Response(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 }

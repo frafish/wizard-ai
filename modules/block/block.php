@@ -12,7 +12,7 @@ class Block {
 
     
     public function register_block_routes() {
-        register_rest_route('wizard-blocks/v1', '/process-ai', [
+        register_rest_route('wizard-ai/v1', '/process-ai', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_ai_request'],
             'permission_callback' => function () { return current_user_can('edit_posts'); }
@@ -155,6 +155,13 @@ class Block {
                 }
                 
                 try {
+                    $ai = \WizardAi\Modules\Ai\Ai::instance();
+                    if (!$ai->check_budget_cap()) {
+                        return new \WP_REST_Response([
+                            'success' => false,
+                            'message' => __('Monthly token budget cap exceeded. Please upgrade your budget or wait until next month.', 'wizard-ai')
+                        ], 403);
+                    }
                     $result = $ai_query->generateResult();
                     $response_message = $result->toMessage();
                     $messages[] = $response_message;

@@ -382,318 +382,351 @@ trait Chat {
             }
         }
 
+        $tools[] = new \WordPress\AiClient\Tools\DTO\FunctionDeclaration(
+            'wpab__ai__fill_form_field',
+            'Fill a frontend HTML form field with a specific value. Useful when assisting a user to complete a form.',
+            ['type' => 'object', 'properties' => [
+                'field_name' => ['type' => 'string', 'description' => 'The name attribute or ID attribute of the form field to fill.'],
+                'value' => ['type' => 'string', 'description' => 'The value to fill into the field.']
+            ], 'required' => ['field_name', 'value']]
+        );
+
         for ($i = 0; $i < count($models_to_try); $i++) {
             list($tryProvider, $tryModel) = explode('|', $models_to_try[$i]);
             
-            try {
-                $max_iterations = 5;
-                $loop_messages = $messages;
-                $display_text = "";
-                
-                while ($max_iterations > 0) {
-                    $ai_query = \WordPress\AiClient\AiClient::prompt($loop_messages);
-                    $ai_query->usingModelPreference([$tryProvider, $tryModel]);
-                    $ai_query->usingSystemInstruction($system_prompt);
+            $max_retries = 2;
+            for ($attempt = 0; $attempt <= $max_retries; $attempt++) {
+                try {
+                    $max_iterations = 5;
+                    $loop_messages = $messages;
+                    $display_text = "";
                     
-                    if (!empty($tools)) {
-                        $ai_query->usingFunctionDeclarations(...$tools);
-                    }
+                    while ($max_iterations > 0) {
+                        $ai_query = \WordPress\AiClient\AiClient::prompt($loop_messages);
+                        $ai_query->usingModelPreference([$tryProvider, $tryModel]);
+                        $ai_query->usingSystemInstruction($system_prompt);
+                        
+                        if (!empty($tools)) {
+                            $ai_query->usingFunctionDeclarations(...$tools);
+                        }
 
-                    $result = $ai_query->generateResult();
-                    $response_message = $result->toMessage();
-                    
-                    $has_tools = false;
-                    $tool_responses = [];
-                    $filtered_parts = [];
-                    $tool_count = 0;
-                    
-                    foreach ($response_message->getParts() as $part) {
-                        if ($part->getFunctionCall() !== null) {
-                            $tool_count++;
-                            if ($tool_count > 1) {
-                                continue;
-                            }
-                            
-                            $filtered_parts[] = $part;
-                            $has_tools = true;
-                            $fc = $part->getFunctionCall();
-                            $name = $fc->getName();
-                            $args = is_string($fc->getArgs()) ? json_decode($fc->getArgs(), true) : (array)$fc->getArgs();
-                            $tool_result = ['error' => 'Tool not found.'];
-                            
-                            if (class_exists('WooCommerce')) {
-                                if ($name === 'wc_add_to_cart') {
-                                    $pid = isset($args['product_id']) ? intval($args['product_id']) : 0;
-                                    $vid = isset($args['variation_id']) ? intval($args['variation_id']) : 0;
-                                    if ($pid > 0 && function_exists('wc_get_product') && wc_get_product($pid)) {
-                                        if ($vid > 0) {
-                                            WC()->cart->add_to_cart($pid, 1, $vid);
+                        $ai = \WizardAi\Modules\Ai\Ai::instance();
+                        if (!$ai->check_budget_cap()) {
+                            throw new \Exception(__('Monthly token budget cap exceeded. Please upgrade your budget or wait until next month.', 'wizard-ai'));
+                        }
+                        $result = $ai_query->generateResult();
+                        $response_message = $result->toMessage();
+                        
+                        $has_tools = false;
+                        $tool_responses = [];
+                        $filtered_parts = [];
+                        $tool_count = 0;
+                        
+                        foreach ($response_message->getParts() as $part) {
+                            if ($part->getFunctionCall() !== null) {
+                                $tool_count++;
+                                if ($tool_count > 1) {
+                                    continue;
+                                }
+                                
+                                $filtered_parts[] = $part;
+                                $has_tools = true;
+                                $fc = $part->getFunctionCall();
+                                $name = $fc->getName();
+                                $args = is_string($fc->getArgs()) ? json_decode($fc->getArgs(), true) : (array)$fc->getArgs();
+                                $tool_result = ['error' => 'Tool not found.'];
+                                
+                                if (class_exists('WooCommerce')) {
+                                    if ($name === 'wc_add_to_cart') {
+                                        $pid = isset($args['product_id']) ? intval($args['product_id']) : 0;
+                                        $vid = isset($args['variation_id']) ? intval($args['variation_id']) : 0;
+                                        if ($pid > 0 && function_exists('wc_get_product') && wc_get_product($pid)) {
+                                            if ($vid > 0) {
+                                                WC()->cart->add_to_cart($pid, 1, $vid);
+                                            } else {
+                                                WC()->cart->add_to_cart($pid);
+                                            }
+                                            $tool_result = ['success' => true, 'message' => 'Product added to cart successfully.'];
                                         } else {
-                                            WC()->cart->add_to_cart($pid);
+                                            $tool_result = ['error' => 'Invalid product ID or product not found.'];
                                         }
-                                        $tool_result = ['success' => true, 'message' => 'Product added to cart successfully.'];
-                                    } else {
-                                        $tool_result = ['error' => 'Invalid product ID or product not found.'];
-                                    }
-                                } elseif ($name === 'wc_remove_from_cart') {
-                                    $pid = isset($args['product_id']) ? intval($args['product_id']) : 0;
-                                    $removed = false;
-                                    foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-                                        if ($cart_item['product_id'] == $pid) {
-                                            WC()->cart->remove_cart_item($cart_item_key);
-                                            $removed = true;
+                                    } elseif ($name === 'wc_remove_from_cart') {
+                                        $pid = isset($args['product_id']) ? intval($args['product_id']) : 0;
+                                        $removed = false;
+                                        foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+                                            if ($cart_item['product_id'] == $pid) {
+                                                WC()->cart->remove_cart_item($cart_item_key);
+                                                $removed = true;
+                                            }
+                                        }
+                                        $tool_result = $removed ? ['success' => true, 'message' => 'Product removed from cart.'] : ['error' => 'Product not found in cart.'];
+                                    } elseif ($name === 'wc_apply_coupon') {
+                                        $code = isset($args['coupon_code']) ? sanitize_text_field($args['coupon_code']) : '';
+                                        if (!empty($code)) {
+                                            $res = WC()->cart->apply_coupon($code);
+                                            $tool_result = $res ? ['success' => true, 'message' => 'Coupon applied successfully.'] : ['error' => 'Invalid or expired coupon.'];
+                                        }
+                                    } elseif ($name === 'wc_get_user_orders') {
+                                        $user_id = get_current_user_id();
+                                        if ($user_id > 0) {
+                                            $orders = wc_get_orders(['customer' => $user_id, 'limit' => 5]);
+                                            $o_data = [];
+                                            foreach ($orders as $o) {
+                                                $o_data[] = ['id' => $o->get_id(), 'status' => $o->get_status(), 'total' => $o->get_total(), 'date' => $o->get_date_created() ? $o->get_date_created()->date('Y-m-d') : ''];
+                                            }
+                                            $tool_result = ['orders' => $o_data];
+                                        } else {
+                                            $tool_result = ['error' => 'User is not logged in.'];
+                                        }
+                                    } elseif ($name === 'wc_search_products') {
+                                        $q = isset($args['query']) ? sanitize_text_field($args['query']) : '';
+                                        if (!empty($q)) {
+                                            $products = wc_get_products([
+                                                's' => $q,
+                                                'status' => 'publish',
+                                                'limit' => 5,
+                                            ]);
+                                            $p_data = [];
+                                            foreach ($products as $p) {
+                                                $item = [
+                                                    'id' => $p->get_id(),
+                                                    'name' => $p->get_name(),
+                                                    'type' => $p->get_type(),
+                                                    'price' => $p->get_price(),
+                                                ];
+                                                if ($p->is_type('variable')) {
+                                                    $item['variations'] = [];
+                                                    $available_variations = $p->get_available_variations();
+                                                    foreach ($available_variations as $var) {
+                                                        $attr_string = [];
+                                                        foreach ($var['attributes'] as $attr_k => $attr_v) {
+                                                            $attr_string[] = str_replace('attribute_', '', $attr_k) . ': ' . $attr_v;
+                                                        }
+                                                        $item['variations'][] = [
+                                                            'variation_id' => $var['variation_id'],
+                                                            'attributes' => implode(', ', $attr_string),
+                                                            'price' => $var['display_price']
+                                                        ];
+                                                    }
+                                                }
+                                                $p_data[] = $item;
+                                            }
+                                            $tool_result = ['products' => $p_data];
+                                        } else {
+                                            $tool_result = ['error' => 'Query is required.'];
                                         }
                                     }
-                                    $tool_result = $removed ? ['success' => true, 'message' => 'Product removed from cart.'] : ['error' => 'Product not found in cart.'];
-                                } elseif ($name === 'wc_apply_coupon') {
-                                    $code = isset($args['coupon_code']) ? sanitize_text_field($args['coupon_code']) : '';
-                                    if (!empty($code)) {
-                                        $res = WC()->cart->apply_coupon($code);
-                                        $tool_result = $res ? ['success' => true, 'message' => 'Coupon applied successfully.'] : ['error' => 'Invalid or expired coupon.'];
-                                    }
-                                } elseif ($name === 'wc_get_user_orders') {
-                                    $user_id = get_current_user_id();
-                                    if ($user_id > 0) {
-                                        $orders = wc_get_orders(['customer' => $user_id, 'limit' => 5]);
-                                        $o_data = [];
-                                        foreach ($orders as $o) {
-                                            $o_data[] = ['id' => $o->get_id(), 'status' => $o->get_status(), 'total' => $o->get_total(), 'date' => $o->get_date_created() ? $o->get_date_created()->date('Y-m-d') : ''];
-                                        }
-                                        $tool_result = ['orders' => $o_data];
-                                    } else {
-                                        $tool_result = ['error' => 'User is not logged in.'];
-                                    }
-                                } elseif ($name === 'wc_search_products') {
+                                }
+                                
+                                if ($name === 'search_site_content') {
                                     $q = isset($args['query']) ? sanitize_text_field($args['query']) : '';
                                     if (!empty($q)) {
-                                        $products = wc_get_products([
+                                        $search_query = new \WP_Query([
                                             's' => $q,
-                                            'status' => 'publish',
-                                            'limit' => 5,
+                                            'post_type' => ['post', 'page', 'product'],
+                                            'post_status' => 'publish',
+                                            'posts_per_page' => 5,
                                         ]);
-                                        $p_data = [];
-                                        foreach ($products as $p) {
-                                            $item = [
-                                                'id' => $p->get_id(),
-                                                'name' => $p->get_name(),
-                                                'type' => $p->get_type(),
-                                                'price' => $p->get_price(),
-                                            ];
-                                            if ($p->is_type('variable')) {
-                                                $item['variations'] = [];
-                                                $available_variations = $p->get_available_variations();
-                                                foreach ($available_variations as $var) {
-                                                    $attr_string = [];
-                                                    foreach ($var['attributes'] as $attr_k => $attr_v) {
-                                                        $attr_string[] = str_replace('attribute_', '', $attr_k) . ': ' . $attr_v;
-                                                    }
-                                                    $item['variations'][] = [
-                                                        'variation_id' => $var['variation_id'],
-                                                        'attributes' => implode(', ', $attr_string),
-                                                        'price' => $var['display_price']
-                                                    ];
-                                                }
+                                        $search_results = [];
+                                        if ($search_query->have_posts()) {
+                                            foreach ($search_query->posts as $p) {
+                                                $search_results[] = [
+                                                    'title' => $p->post_title,
+                                                    'type' => $p->post_type,
+                                                    'url' => get_permalink($p->ID),
+                                                    'snippet' => wp_trim_words(strip_shortcodes(strip_tags($p->post_content)), 100)
+                                                ];
                                             }
-                                            $p_data[] = $item;
                                         }
-                                        $tool_result = ['products' => $p_data];
+                                        $tool_result = ['results' => $search_results];
                                     } else {
                                         $tool_result = ['error' => 'Query is required.'];
                                     }
                                 }
-                            }
-                            
-                            if ($name === 'search_site_content') {
-                                $q = isset($args['query']) ? sanitize_text_field($args['query']) : '';
-                                if (!empty($q)) {
-                                    $search_query = new \WP_Query([
-                                        's' => $q,
-                                        'post_type' => ['post', 'page', 'product'],
-                                        'post_status' => 'publish',
-                                        'posts_per_page' => 5,
-                                    ]);
-                                    $search_results = [];
-                                    if ($search_query->have_posts()) {
-                                        foreach ($search_query->posts as $p) {
-                                            $search_results[] = [
-                                                'title' => $p->post_title,
-                                                'type' => $p->post_type,
-                                                'url' => get_permalink($p->ID),
-                                                'snippet' => wp_trim_words(strip_shortcodes(strip_tags($p->post_content)), 100)
-                                            ];
+
+                                if (class_exists('SitePress')) {
+                                    if ($name === 'wpml_get_translated_url') {
+                                        $url = isset($args['url']) ? sanitize_text_field($args['url']) : '';
+                                        $lang = isset($args['language_code']) ? sanitize_text_field($args['language_code']) : '';
+                                        if (!empty($url) && !empty($lang)) {
+                                            $translated_url = apply_filters('wpml_permalink', $url, $lang);
+                                            $tool_result = ['success' => true, 'translated_url' => $translated_url];
+                                        } else {
+                                            $tool_result = ['error' => 'URL and language_code are required.'];
                                         }
                                     }
-                                    $tool_result = ['results' => $search_results];
-                                } else {
-                                    $tool_result = ['error' => 'Query is required.'];
                                 }
+                                
+                                if ($name === 'elementor_add_widget') {
+                                    if (!$is_editor_user || !$request_post_id) {
+                                        $tool_result = ['error' => 'You do not have permission to edit this page.'];
+                                    } else {
+                                        $widget_type = isset($args['widgetType']) ? sanitize_text_field($args['widgetType']) : '';
+                                        $widget_settings = isset($args['widgetData']) ? $args['widgetData'] : [];
+                                        
+                                        if (!$widget_type || empty($widget_settings)) {
+                                            $tool_result = ['error' => 'Missing widget type or data.'];
+                                        } else {
+                                            $frontend_actions[] = [
+                                                'type' => 'elementor_insert',
+                                                'widgetType' => $widget_type,
+                                                'widgetData' => $widget_settings
+                                            ];
+                                            $tool_result = ['success' => true, 'message' => 'Widget data generated. Inform the user that it has been inserted into the page.'];
+                                        }
+                                    }
+                                }
+
+                                if ($name === 'gutenberg_add_block') {
+                                    if (!$is_editor_user || !$request_post_id) {
+                                        $tool_result = ['error' => 'You do not have permission to edit this page.'];
+                                    } else {
+                                        $block_html = isset($args['blockHTML']) ? $args['blockHTML'] : '';
+                                        if (!$block_html) {
+                                            $tool_result = ['error' => 'Missing block HTML.'];
+                                        } else {
+                                            $frontend_actions[] = [
+                                                'type' => 'gutenberg_insert',
+                                                'blockHTML' => $block_html
+                                            ];
+                                            $tool_result = ['success' => true, 'message' => 'Block data generated. Inform the user that it has been inserted into the page.'];
+                                        }
+                                    }
+                                }
+
+                                if ($name === 'wpab__ai__fill_form_field') {
+                                    $field_name = isset($args['field_name']) ? sanitize_text_field($args['field_name']) : '';
+                                    $val = isset($args['value']) ? sanitize_text_field($args['value']) : '';
+                                    
+                                    if (!$field_name) {
+                                        $tool_result = ['error' => 'Missing field_name.'];
+                                    } else {
+                                        $frontend_actions[] = [
+                                            'type' => 'fill_form',
+                                            'fieldName' => $field_name,
+                                            'fieldValue' => $val
+                                        ];
+                                        $tool_result = ['success' => true, 'message' => "Field '$field_name' filled with '$val'. Inform the user."];
+                                    }
+                                }
+
+                                $tool_responses[] = new \WordPress\AiClient\Messages\DTO\MessagePart(
+                                    new \WordPress\AiClient\Tools\DTO\FunctionResponse($fc->getId(), $name, (object)$tool_result)
+                                );
+                            } else {
+                                $filtered_parts[] = $part;
+                            }
+                        }
+                        
+                        $loop_messages[] = new \WordPress\AiClient\Messages\DTO\ModelMessage($filtered_parts);
+                        
+                        if ($has_tools) {
+                            foreach ($tool_responses as $tr) {
+                                $loop_messages[] = new \WordPress\AiClient\Messages\DTO\UserMessage([$tr]);
+                            }
+                            $max_iterations--;
+                            continue;
+                        } else {
+                            $ai_text = trim($result->toText());
+                            $display_text = $ai_text;
+                            
+                            $stored_name = get_transient($chat_id . '_name') ?: '';
+                            $stored_email = get_transient($chat_id . '_email') ?: '';
+                            
+                            if (preg_match('/My name is (.*?) and my email is ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/', $prompt, $matches)) {
+                                $stored_name = trim($matches[1]);
+                                $stored_email = trim($matches[2]);
+                                set_transient($chat_id . '_name', $stored_name, 3600);
+                                set_transient($chat_id . '_email', $stored_email, 3600);
+                            } elseif (preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $prompt, $matches)) {
+                                $stored_email = $matches[0];
+                                set_transient($chat_id . '_email', $stored_email, 3600);
                             }
 
-                            if (class_exists('SitePress')) {
-                                if ($name === 'wpml_get_translated_url') {
-                                    $url = isset($args['url']) ? sanitize_text_field($args['url']) : '';
-                                    $lang = isset($args['language_code']) ? sanitize_text_field($args['language_code']) : '';
-                                    if (!empty($url) && !empty($lang)) {
-                                        $translated_url = apply_filters('wpml_permalink', $url, $lang);
-                                        $tool_result = ['success' => true, 'translated_url' => $translated_url];
-                                    } else {
-                                        $tool_result = ['error' => 'URL and language_code are required.'];
+                            $current_user = wp_get_current_user();
+                            $user_id = $current_user->ID;
+                            
+                            if (class_exists('\League\CommonMark\CommonMarkConverter')) {
+                                if (class_exists('\League\CommonMark\GithubFlavoredMarkdownConverter')) {
+                                    $converter = new \League\CommonMark\GithubFlavoredMarkdownConverter(['html_input' => 'allow', 'allow_unsafe_links' => false]);
+                                } else {
+                                    $converter = new \League\CommonMark\CommonMarkConverter(['html_input' => 'allow', 'allow_unsafe_links' => false]);
+                                }
+                                $display_text = $converter->convert($ai_text)->getContent();
+                            }
+                            
+                            set_transient($chat_id, serialize($loop_messages), 3600);
+
+                            if (get_option('wai_chatbot_track_sessions', 0)) {
+                                $author_name = $user_id ? $current_user->display_name : ($stored_name ?: 'Visitor');
+                                $author_email = $user_id ? $current_user->user_email : $stored_email;
+
+                                if (!$user_id && !empty($author_email)) {
+                                    $matched_user = get_user_by('email', $author_email);
+                                    if ($matched_user) {
+                                        $user_id = $matched_user->ID;
+                                        if ($author_name === 'Visitor') {
+                                            $author_name = $matched_user->display_name;
+                                        }
                                     }
+                                }
+
+                                $user_comment_id = wp_insert_comment([
+                                    'comment_post_ID' => $request_post_id,
+                                    'comment_author' => wp_slash($author_name),
+                                    'comment_author_email' => $author_email,
+                                    'user_id' => $user_id,
+                                    'comment_content' => wp_slash($prompt),
+                                    'comment_type' => 'wai_chat',
+                                    'comment_approved' => 1
+                                ]);
+                                
+                                $tool_info = "";
+                                if (!empty($frontend_actions)) {
+                                    $tool_info = "\n\n*(Used " . count($frontend_actions) . " actions)*";
+                                }
+
+                                if ($user_comment_id) {
+                                    update_comment_meta($user_comment_id, 'wai_session_id', $session_id);
+                                    update_comment_meta($user_comment_id, 'wai_chat_log', 1);
+                                }
+                                
+                                $ai_comment_id = wp_insert_comment([
+                                    'comment_post_ID' => $request_post_id,
+                                    'comment_author' => 'Wizard AI',
+                                    'comment_content' => wp_slash($display_text . $tool_info),
+                                    'comment_type' => 'wai_chat',
+                                    'comment_approved' => 1
+                                ]);
+                                if ($ai_comment_id) {
+                                    update_comment_meta($ai_comment_id, 'wai_session_id', $session_id);
+                                    update_comment_meta($ai_comment_id, 'wai_chat_log', 1);
                                 }
                             }
                             
-                            if ($name === 'elementor_add_widget') {
-                                if (!$is_editor_user || !$request_post_id) {
-                                    $tool_result = ['error' => 'You do not have permission to edit this page.'];
-                                } else {
-                                    $widget_type = isset($args['widgetType']) ? sanitize_text_field($args['widgetType']) : '';
-                                    $widget_settings = isset($args['widgetData']) ? $args['widgetData'] : [];
-                                    
-                                    if (!$widget_type || empty($widget_settings)) {
-                                        $tool_result = ['error' => 'Missing widget type or data.'];
-                                    } else {
-                                        $frontend_actions[] = [
-                                            'type' => 'elementor_insert',
-                                            'widgetType' => $widget_type,
-                                            'widgetData' => $widget_settings
-                                        ];
-                                        $tool_result = ['success' => true, 'message' => 'Widget data generated. Inform the user that it has been inserted into the page.'];
-                                    }
-                                }
-                            }
-
-                            if ($name === 'gutenberg_add_block') {
-                                if (!$is_editor_user || !$request_post_id) {
-                                    $tool_result = ['error' => 'You do not have permission to edit this page.'];
-                                } else {
-                                    $block_html = isset($args['blockHTML']) ? $args['blockHTML'] : '';
-                                    if (!$block_html) {
-                                        $tool_result = ['error' => 'Missing block HTML.'];
-                                    } else {
-                                        $frontend_actions[] = [
-                                            'type' => 'gutenberg_insert',
-                                            'blockHTML' => $block_html
-                                        ];
-                                        $tool_result = ['success' => true, 'message' => 'Block data generated. Inform the user that it has been inserted into the page.'];
-                                    }
-                                }
-                            }
-
-                            $tool_responses[] = new \WordPress\AiClient\Messages\DTO\MessagePart(
-                                new \WordPress\AiClient\Tools\DTO\FunctionResponse($fc->getId(), $name, (object)$tool_result)
-                            );
-                        } else {
-                            $filtered_parts[] = $part;
+                            break 2;
                         }
                     }
+
+                    remove_filter('http_request_timeout', $timeout_filter, 999);
+
+                    return rest_ensure_response([
+                        'success' => true,
+                        'reply' => $display_text,
+                        'session_id' => $session_id,
+                        'frontend_actions' => $frontend_actions
+                    ]);
+                } catch (\Exception $e) {
+                    $last_exception = $e;
+                    $error_msg = strtolower($e->getMessage());
                     
-                    $loop_messages[] = new \WordPress\AiClient\Messages\DTO\ModelMessage($filtered_parts);
-                    
-                    if ($has_tools) {
-                        foreach ($tool_responses as $tr) {
-                            $loop_messages[] = new \WordPress\AiClient\Messages\DTO\UserMessage([$tr]);
-                        }
-                        $max_iterations--;
+                    if ($attempt < $max_retries && (strpos($error_msg, '429') !== false || strpos($error_msg, '408') !== false || strpos($error_msg, '500') !== false || strpos($error_msg, '502') !== false || strpos($error_msg, '503') !== false || strpos($error_msg, 'rate limit') !== false || strpos($error_msg, 'timeout') !== false)) {
+                        sleep(2);
                         continue;
                     } else {
-                        // We have the final text!
-                        $ai_text = trim($result->toText());
-                        $display_text = $ai_text;
-                        
-                        $stored_name = get_transient($chat_id . '_name') ?: '';
-                        $stored_email = get_transient($chat_id . '_email') ?: '';
-                        
-                        if (preg_match('/My name is (.*?) and my email is ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/', $prompt, $matches)) {
-                            $stored_name = trim($matches[1]);
-                            $stored_email = trim($matches[2]);
-                            set_transient($chat_id . '_name', $stored_name, 3600);
-                            set_transient($chat_id . '_email', $stored_email, 3600);
-                        } elseif (preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $prompt, $matches)) {
-                            $stored_email = $matches[0];
-                            set_transient($chat_id . '_email', $stored_email, 3600);
-                        }
-
-                        $current_user = wp_get_current_user();
-                        $user_id = $current_user->ID;
-                        
-                        if (class_exists('\League\CommonMark\CommonMarkConverter')) {
-                            if (class_exists('\League\CommonMark\GithubFlavoredMarkdownConverter')) {
-                                $converter = new \League\CommonMark\GithubFlavoredMarkdownConverter(['html_input' => 'allow', 'allow_unsafe_links' => false]);
-                            } else {
-                                $converter = new \League\CommonMark\CommonMarkConverter(['html_input' => 'allow', 'allow_unsafe_links' => false]);
-                            }
-                            $display_text = $converter->convert($ai_text)->getContent();
-                        }
-                        
-                        // Save conversation
-                        set_transient($chat_id, serialize($loop_messages), 3600);
-                        
-                        if (get_option('wai_chatbot_track_sessions', 0)) {
-                            // Find the last generated tool info if any to append to AI response
-                            $tool_info = '';
-                            foreach ($loop_messages as $m) {
-                                if ($m->getParts()[0]->getFunctionCall() !== null) {
-                                    $tool_info .= "\n*(Used Tool: " . $m->getParts()[0]->getFunctionCall()->getName() . ")*";
-                                }
-                            }
-
-                            $author_name = $user_id ? $current_user->display_name : ($stored_name ?: 'Visitor');
-                            $author_email = $user_id ? $current_user->user_email : $stored_email;
-
-                            // Fallback to fetch user by email if REST API auth drops the user_id
-                            if (!$user_id && !empty($author_email)) {
-                                $matched_user = get_user_by('email', $author_email);
-                                if ($matched_user) {
-                                    $user_id = $matched_user->ID;
-                                    if ($author_name === 'Visitor') {
-                                        $author_name = $matched_user->display_name;
-                                    }
-                                }
-                            }
-
-
-                            $user_comment_id = wp_insert_comment([
-                                'comment_post_ID' => $request_post_id,
-                                'comment_author' => wp_slash($author_name),
-                                'comment_author_email' => $author_email,
-                                'user_id' => $user_id,
-                                'comment_content' => wp_slash($prompt),
-                                'comment_type' => 'wai_chat',
-                                'comment_approved' => 1
-                            ]);
-                            if ($user_comment_id) {
-                                update_comment_meta($user_comment_id, 'wai_session_id', $session_id);
-                                update_comment_meta($user_comment_id, 'wai_chat_log', 1);
-                            }
-                            
-                            $ai_comment_id = wp_insert_comment([
-                                'comment_post_ID' => $request_post_id,
-                                'comment_author' => 'Wizard AI',
-                                'comment_content' => wp_slash($display_text . $tool_info),
-                                'comment_type' => 'wai_chat',
-                                'comment_approved' => 1
-                            ]);
-                            if ($ai_comment_id) {
-                                update_comment_meta($ai_comment_id, 'wai_session_id', $session_id);
-                                update_comment_meta($ai_comment_id, 'wai_chat_log', 1);
-                            }
-                        }
-                        
                         break;
                     }
                 }
-
-                remove_filter('http_request_timeout', $timeout_filter, 999);
-
-                return rest_ensure_response([
-                    'success' => true,
-                    'reply' => $display_text,
-                    'session_id' => $session_id,
-                    'frontend_actions' => $frontend_actions
-                ]);
-            } catch (\Exception $e) {
-                $last_exception = $e;
-                continue; // Try next model
             }
         }
         

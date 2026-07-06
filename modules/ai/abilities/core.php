@@ -165,11 +165,21 @@ trait Core {
                 global $wai_is_executing;
                 $wai_is_executing = true;
                 
+                $recorder = new \WizardAi\Modules\Ai\Classes\Change_Recorder();
+                $recorder->start_recording();
+
                 global $wai_shutdown_registered;
                 if (!$wai_shutdown_registered) {
-                    register_shutdown_function(function() {
+                    register_shutdown_function(function() use ($recorder) {
                         global $wai_is_executing;
                         if ($wai_is_executing) {
+                            $changes = $recorder->stop_recording();
+                            if (!empty($changes)) {
+                                $upload_dir = wp_upload_dir();
+                                $backup_dir = $upload_dir['basedir'] . '/wai/playground_backups';
+                                if (!is_dir($backup_dir)) wp_mkdir_p($backup_dir);
+                                file_put_contents($backup_dir . '/php_eval_fatal_' . time() . '.json', json_encode(['changes' => $changes]));
+                            }
                             $error = error_get_last();
                             if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
                                 while (ob_get_level()) { ob_end_clean(); }
@@ -186,15 +196,35 @@ trait Core {
                     $output = ob_get_clean();
                     $wai_is_executing = false;
                     
+                    $changes = $recorder->stop_recording();
+                    $backup_file = null;
+                    if (!empty($changes)) {
+                        $upload_dir = wp_upload_dir();
+                        $backup_dir = $upload_dir['basedir'] . '/wai/playground_backups';
+                        if (!is_dir($backup_dir)) wp_mkdir_p($backup_dir);
+                        $backup_file = $backup_dir . '/php_eval_' . time() . '.json';
+                        file_put_contents($backup_file, wp_json_encode(['code' => $code, 'changes' => $changes]));
+                    }
+                    
                     $response = [
                         'success' => true,
                         'result' => $result,
                         'output' => $output
                     ];
+                    if ($backup_file) {
+                        $response['backup_file'] = basename($backup_file);
+                    }
                     return $response;
                 } catch (\Throwable $e) {
                     $wai_is_executing = false;
                     ob_end_clean();
+                    $changes = $recorder->stop_recording();
+                    if (!empty($changes)) {
+                        $upload_dir = wp_upload_dir();
+                        $backup_dir = $upload_dir['basedir'] . '/wai/playground_backups';
+                        if (!is_dir($backup_dir)) wp_mkdir_p($backup_dir);
+                        file_put_contents($backup_dir . '/php_eval_error_' . time() . '.json', wp_json_encode(['code' => $code, 'changes' => $changes, 'error' => $e->getMessage()]));
+                    }
                     return new \WP_Error('php_error', $e->getMessage() . ' on line ' . $e->getLine());
                 }
             },

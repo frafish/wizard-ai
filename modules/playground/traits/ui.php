@@ -16,9 +16,10 @@ trait Ui {
         $cm_sql_settings = property_exists($this, 'cm_sql_settings') ? \WizardAi\Modules\Ai\Ai::instance()->cm_sql_settings : false;
         ?>
         <div class="wrap">
-            <h1>
+            <h1 style="display: flex; align-items: center; gap: 10px;">
                 <span class="dashicons dashicons-superhero"></span>
                 <?php esc_html_e('Wizard AI Playground', 'wizard-ai'); ?>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=wizard-ai-automation')); ?>" class="page-title-action"><span class="dashicons dashicons-clock" style="vertical-align: middle;"></span> <?php esc_html_e('Automated Tasks', 'wizard-ai'); ?></a>
             </h1>
             
             <?php if ($is_ai_configured): ?>
@@ -251,7 +252,7 @@ trait Ui {
                                             if ($f['is_new']) {
                                                 $file_links[] = esc_html($base) . ' (New)';
                                             } else {
-                                                $dl_url = rest_url('wizard-blocks/v1/download-ai-backup?id=' . $filename . '&type=file&index=' . $i . '&_wpnonce=' . wp_create_nonce('wp_rest'));
+                                                $dl_url = rest_url('wizard-ai/v1/download-ai-backup?id=' . $filename . '&type=file&index=' . $i . '&_wpnonce=' . wp_create_nonce('wp_rest'));
                                                 $file_links[] = esc_html($base) . ' <a href="' . esc_url($dl_url) . '" target="_blank" title="Download Original">(Download)</a>';
                                             }
                                         }
@@ -260,7 +261,7 @@ trait Ui {
                                     if (!empty($data['db_changes'])) {
                                         $details[] = count($data['db_changes']) . ' DB changes';
                                         $tables = array_unique(array_column($data['db_changes'], 'table'));
-                                        $dl_url = rest_url('wizard-blocks/v1/download-ai-backup?id=' . $filename . '&type=sql&_wpnonce=' . wp_create_nonce('wp_rest'));
+                                        $dl_url = rest_url('wizard-ai/v1/download-ai-backup?id=' . $filename . '&type=sql&_wpnonce=' . wp_create_nonce('wp_rest'));
                                         $extra_html .= '<li><strong>Tables:</strong> ' . esc_html(implode(', ', $tables)) . ' <a href="' . esc_url($dl_url) . '" target="_blank" title="Download SQL Dump">(Download SQL)</a></li>';
                                     }
                                     if (!empty($data['options'])) {
@@ -371,7 +372,7 @@ trait Ui {
         window.waiSettings = {
             nonceTest: '<?php echo esc_js(wp_create_nonce("wai_test_nonce")); ?>',
             nonceRest: '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>',
-            restUrl: '<?php echo esc_js(esc_url_raw(rest_url('wizard-blocks/v1/ai-chat'))); ?>',
+            restUrl: '<?php echo esc_js(esc_url_raw(rest_url('wizard-ai/v1/ai-chat'))); ?>',
             homeUrl: '<?php echo esc_js(esc_url_raw(home_url('/'))); ?>',
             textTesting: '<?php echo esc_js(__('Testing...', 'wizard-ai')); ?>',
             textAiThinking: '<?php echo esc_js(__('AI is thinking...', 'wizard-ai')); ?>',

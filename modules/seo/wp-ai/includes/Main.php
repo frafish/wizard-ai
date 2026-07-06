@@ -63,7 +63,11 @@ final class Main {
 	 */
 	private function setup(): void {
 		// Load the plugin classes.
-		add_action( 'plugins_loaded', array( $this, 'load' ) );
+		if (did_action('plugins_loaded')) {
+			$this->load();
+		} else {
+			add_action( 'plugins_loaded', array( $this, 'load' ) );
+		}
 
 		// Register activation and deactivation hooks.
 		register_activation_hook( WPAI_PLUGIN_FILE, array( Activation::class, 'activation_callback' ) );

@@ -26,8 +26,20 @@
                     if ($chatbot.hasClass('wai-agent-closed')) {
                         $toggleBtn.click();
                     }
+                    // Insert a temporary block below the prompt block to act as a placeholder
+                    const blockEditorSelect = wp.data.select('core/block-editor');
+                    const blockEditorDispatch = wp.data.dispatch('core/block-editor');
                     
-                    // We explicitly ask the agent to replace the currently selected block (which is this one)
+                    const currentIndex = blockEditorSelect.getBlockIndex(props.clientId);
+                    const placeholderBlock = wp.blocks.createBlock('core/paragraph', { content: '⏳ Generating...' });
+                    
+                    // Insert immediately after the prompt block
+                    blockEditorDispatch.insertBlock(placeholderBlock, currentIndex + 1);
+                    
+                    // Select the placeholder block so the agent targets it instead of the prompt block
+                    blockEditorDispatch.selectBlock(placeholderBlock.clientId);
+
+                    // We explicitly ask the agent to replace the currently selected block (which is now the placeholder!)
                     $prompt.val('Please generate and replace the current block with the following: ' + prompt);
                     $prompt.focus();
                     $sendBtn.click();

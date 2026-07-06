@@ -364,6 +364,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 current_content = document.body.innerText.substring(0, 15000);
             }
 
+            let formsContext = '';
+            document.querySelectorAll('form').forEach((f, idx) => {
+                if (f.id === 'wai-chatbot-form') return;
+                formsContext += `[Frontend Form ${idx + 1} (${f.id || f.className || 'unnamed'})]\n`;
+                f.querySelectorAll('input, select, textarea').forEach(input => {
+                    if (input.type === 'hidden' || input.type === 'submit' || input.type === 'button') return;
+                    let name = input.name || input.id;
+                    if (!name) return;
+                    let type = input.tagName.toLowerCase() === 'select' ? 'select' : input.type;
+                    let options = '';
+                    if (type === 'select') {
+                        options = ' Options: ' + Array.from(input.options).map(o => o.value).join(', ');
+                    }
+                    formsContext += `- ${name} (type: ${type})${options}\n`;
+                });
+                formsContext += '\n';
+            });
+
+            if (formsContext) {
+                current_content += "\n\n--- Forms on this page ---\n" + formsContext + "Note: If the user needs help filling a form, prompt them for values step by step, and use the `wpab__ai__fill_form_field` tool to auto-fill the frontend form fields for them! Provide option lists and suggest values if appropriate.\n";
+            }
+
             const hp = document.getElementById('wai-chatbot-hp');
             const reqData = {
                 prompt: text,
@@ -399,7 +421,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.frontend_actions && data.frontend_actions.length > 0) {
                     data.frontend_actions.forEach(action => {
-                        if (action.type === 'elementor_insert' && window.elementor) {
+                        if (action.type === 'fill_form') {
+                            try {
+                                const field = document.querySelector(`[name="${action.fieldName}"]`) || document.getElementById(action.fieldName);
+                                if (field) {
+                                    field.value = action.fieldValue;
+                                    field.dispatchEvent(new Event('change', { bubbles: true }));
+                                    field.dispatchEvent(new Event('input', { bubbles: true }));
+                                    field.style.boxShadow = '0 0 10px #4ade80';
+                                    setTimeout(() => field.style.boxShadow = '', 2000);
+                                }
+                            } catch(err) {
+                                console.error('Form fill error:', err);
+                            }
+                        } else if (action.type === 'elementor_insert' && window.elementor) {
                             try {
                                 let section = {
                                     id: Math.random().toString(36).substr(2, 7),
