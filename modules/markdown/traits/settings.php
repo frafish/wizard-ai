@@ -19,7 +19,10 @@ trait Settings {
         }
 
         $enabled = get_option('wbai_markdown_enabled', '1');
-        $selected_cpts = get_option('wbai_markdown_cpts', ['post', 'page']);
+        $selected_cpts = get_option('wbai_markdown_cpts', false);
+        if ($selected_cpts === false) {
+            $selected_cpts = array_values(array_diff(array_keys(get_post_types(['public' => true])), ['attachment']));
+        }
         
         $post_types = get_post_types(['public' => true], 'objects');
 

@@ -170,6 +170,19 @@ jQuery(document).ready(function($) {
         $messages.scrollTop($messages[0].scrollHeight);
     }
 
+    let lastSelectedBlockClientIds = [];
+    if (typeof wp !== 'undefined' && wp.data && wp.data.subscribe) {
+        wp.data.subscribe(() => {
+            const blockEditor = wp.data.select('core/block-editor');
+            if (blockEditor) {
+                const selected = blockEditor.getSelectedBlockClientIds();
+                if (selected && selected.length > 0) {
+                    lastSelectedBlockClientIds = selected;
+                }
+            }
+        });
+    }
+
     function gatherContext() {
         let context = "I am on the screen: " + wizardAiAgentData.screen + "\n";
         
@@ -204,17 +217,8 @@ jQuery(document).ready(function($) {
             if (content) context += "Content:\n" + content + "\n\n";
             
             let selectedBlocks = [];
-            if (wp.data.select('core/block-editor').getSelectedBlockClientIds) {
-                const clientIds = wp.data.select('core/block-editor').getSelectedBlockClientIds();
-                if (clientIds && clientIds.length > 0) {
-                    selectedBlocks = clientIds.map(id => wp.data.select('core/block-editor').getBlock(id)).filter(Boolean);
-                }
-            } else if (wp.data.select('core/block-editor').getSelectedBlockClientId) {
-                const clientId = wp.data.select('core/block-editor').getSelectedBlockClientId();
-                if (clientId) {
-                    const block = wp.data.select('core/block-editor').getBlock(clientId);
-                    if (block) selectedBlocks.push(block);
-                }
+            if (lastSelectedBlockClientIds.length > 0) {
+                selectedBlocks = lastSelectedBlockClientIds.map(id => wp.data.select('core/block-editor').getBlock(id)).filter(Boolean);
             }
             
             if (selectedBlocks && selectedBlocks.length > 0) {
@@ -253,7 +257,7 @@ jQuery(document).ready(function($) {
                 }
             } catch (e) {}
             
-            context += "CRITICAL INSTRUCTION: You are interacting directly with the active Gutenberg Block Editor. By default, you MUST NEVER replace the full page content unless explicitly asked. Always prefer to APPEND new blocks (or insert them at the current position) and leave the old content intact. To INSERT or APPEND new blocks, you MUST output the raw Gutenberg HTML inside a ```gutenberg-insert code block. Do NOT use standard ```html blocks.\n\nGutenberg block HTML is strictly validated. The inner HTML MUST perfectly match the block wrapper comments. For complex layouts like columns, you MUST use the exact structure with the `wp-block-columns` and `wp-block-column` wrapper divs.\nTo completely REPLACE the entire page content, use a ```gutenberg-replace code block.\nTo EDIT and REPLACE the user's currently selected block(s) with your new version, use a ```gutenberg-edit code block.\nIf you cannot perfectly remember the exact HTML wrapper for a complex core block, it is safer to use a `core/html` block and insert standard raw HTML.\n";
+            context += "CRITICAL INSTRUCTION: You are interacting directly with the active Gutenberg Block Editor. By default, you MUST NEVER replace the full page content unless explicitly asked. Always prefer to APPEND new blocks (or insert them at the current position) and leave the old content intact. To INSERT or APPEND new blocks, you MUST output the raw Gutenberg HTML inside a ```gutenberg-insert code block. Do NOT use standard ```html blocks.\n\nGutenberg block HTML is strictly validated. The inner HTML MUST perfectly match the block wrapper comments. For complex layouts like columns, you MUST use the exact structure with the `wp-block-columns` and `wp-block-column` wrapper divs.\nTo completely REPLACE the entire page content, use a ```gutenberg-replace code block.\nTo EDIT and REPLACE the user's currently selected block(s) with your new version, use a ```gutenberg-edit code block. \nIMPORTANT: ALWAYS use these markdown code blocks. NEVER use manage-posts or update tools to modify the current post if the user wants to update the blocks in the editor visually. Just output the blocks inside ```gutenberg-edit or ```gutenberg-insert and the editor will automatically apply them!\nIf you cannot perfectly remember the exact HTML wrapper for a complex core block, it is safer to use a `core/html` block and insert standard raw HTML.\n";
         } else {
             content = $('#content').val() || $('#description').val() || '';
             if (content) context += "Content/Description:\n" + content + "\n";
@@ -429,12 +433,17 @@ jQuery(document).ready(function($) {
                                 const allParsed = wp.blocks.parse(blockContentToParse);
                                 console.log("[Wizard AI] wp.blocks.parse result:", allParsed);
                                 for (const block of allParsed) {
-                                    if (block.name === 'core/freeform') continue;
+                                    if (block.name === 'core/freeform') {
+                                        const content = typeof block.originalContent === 'string' ? block.originalContent : (block.attributes ? block.attributes.content : '');
+                                        if (!content || content.trim() === '') {
+                                            continue;
+                                        }
+                                    }
                                     
-                                    // Verify each new block
+                                    // Even if block.isValid is false, we keep it! Gutenberg will show a "Attempt Block Recovery" button,
+                                    // which is much better than silently skipping the block and confusing the user.
                                     if (block.isValid === false) {
-                                        console.warn("[Wizard AI] Skipped invalid block:", block.name);
-                                        continue;
+                                        console.warn("[Wizard AI] Parsed block is marked invalid, but inserting anyway for recovery:", block.name);
                                     }
                                     
                                     injectedBlocks.push(block);
@@ -471,20 +480,14 @@ jQuery(document).ready(function($) {
                                         blockEditorDispatch.resetBlocks(injectedBlocks);
                                     }
                                 } else if (aiResponse.toLowerCase().includes('```gutenberg-edit')) {
-                                    const selectedBlockClientIds = blockEditorData.getSelectedBlockClientIds();
-                                    if (selectedBlockClientIds && selectedBlockClientIds.length > 0) {
-                                        blockEditorDispatch.replaceBlocks(selectedBlockClientIds, injectedBlocks);
+                                    if (lastSelectedBlockClientIds && lastSelectedBlockClientIds.length > 0) {
+                                        blockEditorDispatch.replaceBlocks(lastSelectedBlockClientIds, injectedBlocks);
                                     } else {
-                                        const selectedBlockClientId = blockEditorData.getSelectedBlockClientId();
-                                        if (selectedBlockClientId) {
-                                            blockEditorDispatch.replaceBlocks([selectedBlockClientId], injectedBlocks);
-                                        } else {
-                                            blockEditorDispatch.insertBlocks(injectedBlocks);
-                                        }
+                                        blockEditorDispatch.insertBlocks(injectedBlocks);
                                     }
                                 } else {
-                                    const selectedBlockClientId = blockEditorData.getSelectedBlockClientId();
-                                    if (selectedBlockClientId) {
+                                    if (lastSelectedBlockClientIds && lastSelectedBlockClientIds.length > 0) {
+                                        const selectedBlockClientId = lastSelectedBlockClientIds[0];
                                         const blockIndex = blockEditorData.getBlockIndex(selectedBlockClientId);
                                         const rootClientId = blockEditorData.getBlockRootClientId(selectedBlockClientId);
                                         blockEditorDispatch.insertBlocks(injectedBlocks, blockIndex + 1, rootClientId);

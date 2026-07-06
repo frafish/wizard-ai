@@ -52,6 +52,13 @@ class Mcp {
             'callback' => [$this, 'handle_openapi_tool_call'],
             'permission_callback' => [$this, 'mcp_permission_check']
         ]);
+
+        // Webhook Receiver Endpoint for AI Logs
+        register_rest_route('wizard-blocks/v1', '/mcp/webhook', [
+            'methods' => 'POST',
+            'callback' => [$this, 'handle_webhook_request'],
+            'permission_callback' => '__return_true'
+        ]);
     }
 
     public function mcp_permission_check(\WP_REST_Request $request) {
@@ -220,6 +227,43 @@ class Mcp {
         return rest_ensure_response(['success' => true, 'result' => $result]);
     }
 
+    public function handle_webhook_request(\WP_REST_Request $request) {
+        $token = $request->get_header('X-WAI-MCP-TOKEN') ?: $request->get_param('token');
+        $saved_token = get_option('wai_mcp_token', '');
+        
+        if (!empty($saved_token) && $token !== $saved_token) {
+            return new \WP_Error('unauthorized', 'Invalid webhook token', ['status' => 401]);
+        }
+
+        $body = $request->get_json_params();
+        if (empty($body)) {
+            $body = json_decode($request->get_body(), true) ?: $request->get_params();
+        }
+        
+        $title = isset($body['title']) ? sanitize_text_field($body['title']) : 'AI Webhook';
+        $author = isset($body['agent']) ? sanitize_text_field($body['agent']) : (isset($body['tool']) ? sanitize_text_field($body['tool']) : 'Wizard AI');
+        $content_data = isset($body['content']) ? $body['content'] : $body;
+        $content = is_string($content_data) ? wp_kses_post($content_data) : wp_json_encode($content_data, JSON_PRETTY_PRINT);
+        
+        $comment_content = "<strong>" . $title . "</strong><br>\n" . $content;
+        $post_id = isset($body['post_id']) ? (int) $body['post_id'] : 0;
+        
+        $comment_id = wp_insert_comment([
+            'comment_post_ID' => $post_id,
+            'comment_author' => $author,
+            'comment_content' => $comment_content,
+            'comment_type' => 'wai_log',
+            'comment_approved' => 1,
+            'comment_meta' => isset($body['meta']) && is_array($body['meta']) ? $body['meta'] : [],
+        ]);
+        
+        if (!$comment_id) {
+            return new \WP_Error('webhook_failed', 'Failed to create comment log', ['status' => 500]);
+        }
+        
+        return rest_ensure_response(['success' => true, 'comment_id' => $comment_id]);
+    }
+
     public function wb_ai_mcp_page_html() {
         if (isset($_POST['wai_mcp_settings_nonce']) && wp_verify_nonce($_POST['wai_mcp_settings_nonce'], 'wai_mcp_settings')) {
             update_option('wai_mcp_token', sanitize_text_field($_POST['wai_mcp_token']));
@@ -288,6 +332,65 @@ class Mcp {
                         <li><strong><?php esc_html_e('Save:', 'wizard-ai'); ?></strong> <?php esc_html_e('Save your GPT. It can now access your site tools securely!', 'wizard-ai'); ?></li>
                     </ol>
                 </div>
+
+                <!-- Webhook Receiver -->
+                <div class="postbox" style="flex: 1; min-width: 300px; padding: 20px;">
+                    <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('AI Webhook Receiver', 'wizard-ai'); ?></h2>
+                    <p><?php esc_html_e('Use this endpoint to let external AIs (or cron tasks) send logs and statuses directly to your WordPress backend.', 'wizard-ai'); ?></p>
+                    <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #0073aa; margin-bottom: 15px; font-family: monospace; overflow-x: auto;">
+                        <strong>POST Endpoint:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-blocks/v1/mcp/webhook'); ?><br><br>
+                        <strong>Auth:</strong> Include "token": "<?php echo esc_html($token); ?>" in JSON body, OR header X-WAI-MCP-TOKEN.<br><br>
+                        <strong>Payload Example:</strong><br>
+                        {<br>
+                        &nbsp;&nbsp;"token": "<?php echo esc_html($token); ?>",<br>
+                        &nbsp;&nbsp;"post_id": 123, <em>(optional)</em><br>
+                        &nbsp;&nbsp;"agent": "Claude 3.5 Sonnet", <em>(optional)</em><br>
+                        &nbsp;&nbsp;"title": "Cron Task Completed",<br>
+                        &nbsp;&nbsp;"content": "Successfully parsed 10 articles."<br>
+                        }
+                    </div>
+                    <p><em><?php esc_html_e('Logs sent here will appear as Comments (type: wai_log) in WordPress. If you provide a post_id, the comment will be attached to that specific post.', 'wizard-ai'); ?></em></p>
+                </div>
+            </div>
+
+            <!-- AI Logs Display -->
+            <div style="margin-top: 30px;">
+                <h2><?php esc_html_e('Recent AI Activity Logs', 'wizard-ai'); ?></h2>
+                <?php
+                $logs = get_comments([
+                    'type' => 'wai_log',
+                    'number' => 50,
+                    'order' => 'DESC'
+                ]);
+
+                if (empty($logs)) {
+                    echo '<p>' . esc_html__('No AI logs recorded yet.', 'wizard-ai') . '</p>';
+                } else {
+                    echo '<table class="wp-list-table widefat fixed striped">';
+                    echo '<thead><tr>';
+                    echo '<th style="width: 15%;">' . esc_html__('Date', 'wizard-ai') . '</th>';
+                    echo '<th style="width: 15%;">' . esc_html__('Agent / Tool', 'wizard-ai') . '</th>';
+                    echo '<th style="width: 10%;">' . esc_html__('Post ID', 'wizard-ai') . '</th>';
+                    echo '<th>' . esc_html__('Log Details', 'wizard-ai') . '</th>';
+                    echo '<th style="width: 10%;">' . esc_html__('Action', 'wizard-ai') . '</th>';
+                    echo '</tr></thead><tbody>';
+                    
+                    foreach ($logs as $log) {
+                        $delete_url = wp_nonce_url(admin_url('comment.php?action=deletecomment&p=' . $log->comment_post_ID . '&c=' . $log->comment_ID), 'delete-comment_' . $log->comment_ID);
+                        $post_link = $log->comment_post_ID ? '<a href="' . get_edit_post_link($log->comment_post_ID) . '">#' . esc_html($log->comment_post_ID) . '</a>' : '-';
+                        
+                        echo '<tr>';
+                        echo '<td>' . esc_html($log->comment_date) . '</td>';
+                        echo '<td><strong>' . esc_html($log->comment_author) . '</strong></td>';
+                        echo '<td>' . $post_link . '</td>';
+                        echo '<td>' . wp_kses_post($log->comment_content) . '</td>';
+                        echo '<td><a href="' . esc_url($delete_url) . '" class="delete" style="color: #d63638;">' . esc_html__('Delete', 'wizard-ai') . '</a></td>';
+                        echo '</tr>';
+                    }
+                    
+                    echo '</tbody></table>';
+                }
+                ?>
             </div>
         </div>
         <?php

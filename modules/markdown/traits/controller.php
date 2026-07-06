@@ -6,9 +6,12 @@ trait Controller {
         if (!is_singular() || get_query_var('wai_md')) return;
         
         $post = get_queried_object();
-        if (!$post instanceof \WP_Post || $post->post_status !== 'publish' || post_password_required($post)) return;
+        if (!$post instanceof \WP_Post || ($post->post_status !== 'publish' && !($post->post_type === 'attachment' && $post->post_status === 'inherit')) || post_password_required($post)) return;
 
-        $allowed_cpts = get_option('wai_markdown_cpts', ['post', 'page']);
+        $allowed_cpts = get_option('wbai_markdown_cpts', false);
+        if ($allowed_cpts === false) {
+            $allowed_cpts = array_values(array_diff(array_keys(get_post_types(['public' => true])), ['attachment']));
+        }
         if (!in_array($post->post_type, $allowed_cpts)) return;
 
         $canonical = get_permalink($post);
@@ -25,8 +28,11 @@ trait Controller {
         if (strpos($accept, 'text/markdown') !== false) {
             if (is_singular()) {
                 $post = get_queried_object();
-                if ($post instanceof \WP_Post && $post->post_status === 'publish') {
-                    $allowed_cpts = get_option('wai_markdown_cpts', ['post', 'page']);
+                if ($post instanceof \WP_Post && ($post->post_status === 'publish' || ($post->post_type === 'attachment' && $post->post_status === 'inherit'))) {
+                    $allowed_cpts = get_option('wbai_markdown_cpts', false);
+                    if ($allowed_cpts === false) {
+                        $allowed_cpts = array_values(array_diff(array_keys(get_post_types(['public' => true])), ['attachment']));
+                    }
                     if (!in_array($post->post_type, $allowed_cpts)) return;
 
                     $canonical = get_permalink($post);
@@ -51,12 +57,15 @@ trait Controller {
         }
 
         $post = get_queried_object();
-        if (!$post instanceof \WP_Post || $post->post_status !== 'publish') {
+        if (!$post instanceof \WP_Post || ($post->post_status !== 'publish' && !($post->post_type === 'attachment' && $post->post_status === 'inherit'))) {
             status_header(404);
             exit;
         }
 
-        $allowed_cpts = get_option('wai_markdown_cpts', ['post', 'page']);
+        $allowed_cpts = get_option('wbai_markdown_cpts', false);
+        if ($allowed_cpts === false) {
+            $allowed_cpts = array_values(array_diff(array_keys(get_post_types(['public' => true])), ['attachment']));
+        }
         if (!in_array($post->post_type, $allowed_cpts)) {
             status_header(404);
             exit;

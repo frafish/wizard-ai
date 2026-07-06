@@ -4,7 +4,7 @@ namespace WizardAi\Modules\Markdown\Traits;
 trait Init {
     public function register_markdown_hooks() {
         add_action('admin_menu', [$this, 'add_markdown_menu']);
-        if (get_option('wai_markdown_enabled', '1') !== '1') return;
+        if (get_option('wbai_markdown_enabled', '1') !== '1') return;
 
         add_action('init', [$this, 'add_markdown_rewrite_rules']);
         add_filter('query_vars', [$this, 'add_markdown_query_vars']);
@@ -60,8 +60,11 @@ trait Init {
 
             if ($post_id) {
                 $post = get_post($post_id);
-                if ($post && $post->post_status === 'publish') {
-                    $allowed_cpts = get_option('wai_markdown_cpts', ['post', 'page']);
+                if ($post && ($post->post_status === 'publish' || ($post->post_type === 'attachment' && $post->post_status === 'inherit'))) {
+                    $allowed_cpts = get_option('wbai_markdown_cpts', false);
+                    if ($allowed_cpts === false) {
+                        $allowed_cpts = array_values(array_diff(array_keys(get_post_types(['public' => true])), ['attachment']));
+                    }
                     if (in_array($post->post_type, $allowed_cpts)) {
                         if ($post->post_type === 'page') {
                             $wp->query_vars['page_id'] = $post->ID;

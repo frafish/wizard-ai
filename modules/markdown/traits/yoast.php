@@ -29,7 +29,10 @@ trait Yoast {
     public function rewrite_post_link($url, $post) {
         $post_type = get_post_type($post);
         if (!$post_type) return $url;
-        $allowed_cpts = get_option('wai_markdown_cpts', ['post', 'page']);
+        $allowed_cpts = get_option('wbai_markdown_cpts', false);
+        if ($allowed_cpts === false) {
+            $allowed_cpts = array_values(array_diff(array_keys(get_post_types(['public' => true])), ['attachment']));
+        }
         if (!in_array($post_type, $allowed_cpts)) return $url;
         return rtrim($url, '/') . '.md';
     }
