@@ -3,10 +3,10 @@ namespace WizardAi\Modules\Ai\Abilities;
 
 trait Core {
     public function register_core_abilities() {
-        wp_register_ability('ai/search', [
+        wp_register_ability('wizard-ai/search', [
             'label' => __('Search Content', 'wizard-ai'),
             'description' => __('Search for public posts and pages using the native WordPress search function.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $query = isset($input['query']) ? sanitize_text_field($input['query']) : '';
                 if (empty($query)) {
@@ -58,10 +58,10 @@ trait Core {
             ]
         ]);
 
-        wp_register_ability('ai/db-query', [
+        wp_register_ability('wizard-ai/db-query', [
             'label' => __('Execute DB Query', 'wizard-ai'),
             'description' => __('Execute raw SQL queries. Support SELECT, UPDATE, DELETE. Limit results.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 global $wpdb;
                 $query = $input['query'];
@@ -99,10 +99,10 @@ trait Core {
             ]
         ]);
         
-        wp_register_ability('ai/modify-file', [
+        wp_register_ability('wizard-ai/modify-file', [
             'label' => __('Modifying File', 'wizard-ai'),
             'description' => __('Writes or overwrites a file on the server with the provided content. You MUST always provide the full \'content\' parameter. To read a file, use the read-file tool instead. Safely restricted to wp-content.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $path = wp_normalize_path($input['path']);
                 $content = $input['content'];
@@ -145,10 +145,10 @@ trait Core {
             ]
         ]);
 
-        wp_register_ability('ai/execute-php', [
+        wp_register_ability('wizard-ai/execute-php', [
             'label' => __('Execute PHP Code', 'wizard-ai'),
             'description' => __('Execute arbitrary PHP code within the WordPress environment. Use this to create posts, manage taxonomies, update settings, or call any native WordPress function. Do NOT include opening <?php tags. Return a value to receive it in the response.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 require_once(ABSPATH . 'wp-admin/includes/post.php');
                 require_once(ABSPATH . 'wp-admin/includes/taxonomy.php');
@@ -208,10 +208,10 @@ trait Core {
             ]
         ]);
 
-        wp_register_ability('ai/read-file', [
+        wp_register_ability('wizard-ai/read-file', [
             'label' => __('Read File', 'wizard-ai'),
             'description' => __('Read a file from the server.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $path = $input['path'];
                 if (!file_exists($path)) {
@@ -233,10 +233,10 @@ trait Core {
             ]
         ]);
         
-        wp_register_ability('ai/list-directory', [
+        wp_register_ability('wizard-ai/list-directory', [
             'label' => __('List Directory', 'wizard-ai'),
             'description' => __('List files and folders in a directory.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $path = $input['path'];
                 if (!is_dir($path)) {
@@ -258,10 +258,10 @@ trait Core {
             ]
         ]);
 
-        wp_register_ability('ai/manage-plugins', [
+        wp_register_ability('wizard-ai/manage-plugins', [
             'label' => __('Manage Plugins', 'wizard-ai'),
             'description' => __('Manage WordPress plugins safely (list, install, activate, deactivate, delete).', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 if (!function_exists('get_plugins')) {
                     require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -403,10 +403,10 @@ trait Core {
             ]
         ]);
 
-        wp_register_ability('ai/manage-themes', [
+        wp_register_ability('wizard-ai/manage-themes', [
             'label' => __('Manage Themes', 'wizard-ai'),
             'description' => __('Manage WordPress themes safely (list, activate).', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $action = $input['action'];
                 $slug = isset($input['slug']) ? sanitize_text_field($input['slug']) : '';
@@ -442,10 +442,10 @@ trait Core {
             ]
         ]);
 
-        wp_register_ability('ai/manage-system', [
+        wp_register_ability('wizard-ai/manage-system', [
             'label' => __('Manage System & Cache', 'wizard-ai'),
             'description' => __('Perform system actions like flushing permalinks, clearing cache, and transients.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $action = $input['action'];
                 if ($action === 'flush_rewrite_rules') {
@@ -475,10 +475,10 @@ trait Core {
             ]
         ]);
 
-        wp_register_ability('ai/manage-debug', [
+        wp_register_ability('wizard-ai/manage-debug', [
             'label' => __('Manage Debug Log', 'wizard-ai'),
             'description' => __('Enable or disable WordPress debug logging. When enabled, it sets WP_DEBUG and WP_DEBUG_LOG to true and WP_DEBUG_DISPLAY to false in wp-config.php. Read the debug log file from wp-content/debug.log', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $action = $input['action'];
                 $config_path = ABSPATH . 'wp-config.php';
@@ -550,10 +550,10 @@ trait Core {
             ]
         ]);
 
-        wp_register_ability('ai/run-wp-cli', [
+        wp_register_ability('wizard-ai/run-wp-cli', [
             'label' => __('Run WP-CLI Command', 'wizard-ai'),
             'description' => __('Runs a WP-CLI command on the server synchronously. Provide the arguments as an array of strings (e.g. ["plugin", "list", "--format=json"]).', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 if (!function_exists('exec')) {
                     return new \WP_Error('process_execution_disabled', 'Process execution (exec) is disabled.');

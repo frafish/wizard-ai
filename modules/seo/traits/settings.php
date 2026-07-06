@@ -5,6 +5,7 @@ trait Settings {
     public function wb_ai_seo_page_html() {
         $auto_optimize = get_option('wai_auto_optimize_media', false);
         $preferred_model = get_option('wai_seo_preferred_model', '');
+        $text_model = get_option('wai_seo_text_model', '');
         ?>
         <div class="wrap">
             <h1>
@@ -22,6 +23,15 @@ trait Settings {
                                 <option value=""><?php esc_html_e('Automatic (Recommended)', 'wizard-ai'); ?></option>
                             </select>
                             <p class="description"><?php esc_html_e('Select an AI model with vision capabilities (e.g. GPT-4o, Claude 3.5 Sonnet, Gemini 1.5).', 'wizard-ai'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('AI Model (Text)', 'wizard-ai'); ?></th>
+                        <td>
+                            <select id="wai-seo-text-model">
+                                <option value=""><?php esc_html_e('Automatic (Recommended)', 'wizard-ai'); ?></option>
+                            </select>
+                            <p class="description"><?php esc_html_e('Select an AI model for text and logic processing (e.g. GPT-4, Claude 3, Llama 3).', 'wizard-ai'); ?></p>
                         </td>
                     </tr>
                     <tr>
@@ -73,6 +83,24 @@ trait Settings {
                 }
             });
 
+            // Load Text Models
+            fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-blocks/v1/ai-models"))); ?>', {
+                headers: { 'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>' }
+            }).then(res => res.json()).then(data => {
+                if (data.success && data.models) {
+                    const select = $('#wai-seo-text-model');
+                    Object.entries(data.models).forEach(([group, models]) => {
+                        const optgroup = $('<optgroup>').attr('label', group);
+                        Object.entries(models).forEach(([id, name]) => {
+                            const opt = $('<option>').val(id).text(name);
+                            if (id === '<?php echo esc_js($text_model); ?>') opt.prop('selected', true);
+                            optgroup.append(opt);
+                        });
+                        select.append(optgroup);
+                    });
+                }
+            });
+
             $('#wai-seo-save').on('click', function() {
                 const btn = $(this);
                 btn.prop('disabled', true).text('Saving...');
@@ -82,7 +110,8 @@ trait Settings {
                     headers: { 'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>' },
                     data: {
                         auto_optimize: $('#wai-seo-auto').is(':checked') ? 'true' : 'false',
-                        preferred_model: $('#wai-seo-model').val()
+                        preferred_model: $('#wai-seo-model').val(),
+                        text_model: $('#wai-seo-text-model').val()
                     },
                     success: function(res) {
                         btn.prop('disabled', false).text('<?php esc_html_e("Save Settings", "wizard-ai"); ?>');

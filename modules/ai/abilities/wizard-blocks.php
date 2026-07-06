@@ -11,6 +11,7 @@ trait WizardBlocks {
             'label' => __('Create Wizard Block', 'wizard-ai'),
             'description' => __('Dynamically create a new custom Gutenberg block using Wizard Blocks. Provide HTML/PHP (render.php), CSS (style.css), and JS (script.js) to generate the block. The AI should use this when advanced layouts or custom logic are required. The created block can then be inserted using <!-- wp:username/block-slug /-->.', 'wizard-ai'),
             'category' => 'wizard-blocks',
+            'meta' => ['plugin_name' => 'Wizard AI'],
             'execute_callback' => function($input) {
                 if (!class_exists('\WizardBlocks\Modules\Block\Block')) {
                     return new \WP_Error('plugin_missing', 'Wizard Blocks plugin is not installed or active.');
@@ -123,6 +124,7 @@ trait WizardBlocks {
             'label' => __('Modify Wizard Block', 'wizard-ai'),
             'description' => __('Modify an existing custom Gutenberg block. Only provide the files (html, css, or js) that you want to change. Omitted files will remain untouched.', 'wizard-ai'),
             'category' => 'wizard-blocks',
+            'meta' => ['plugin_name' => 'Wizard AI'],
             'execute_callback' => function($input) {
                 if (!class_exists('\WizardBlocks\Modules\Block\Block')) {
                     return new \WP_Error('plugin_missing', 'Wizard Blocks plugin is not installed or active.');

@@ -7,38 +7,13 @@ trait WooCommerce {
             return;
         }
 
-        wp_register_ability('woocommerce/get-products', [
-            'label' => __('Get WooCommerce Products', 'wizard-ai'),
-            'description' => __('Retrieve a list of WooCommerce products.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
-            'execute_callback' => function($input) {
-                $args = isset($input['args']) && is_array($input['args']) ? $input['args'] : [];
-                $products = wc_get_products(array_merge(['limit' => 10], $args));
-                $data = [];
-                foreach ($products as $p) {
-                    $data[] = [
-                        'id' => $p->get_id(),
-                        'name' => $p->get_name(),
-                        'price' => $p->get_price(),
-                        'stock_quantity' => $p->get_stock_quantity(),
-                        'status' => $p->get_status(),
-                    ];
-                }
-                return ['success' => true, 'products' => $data];
-            },
-            'permission_callback' => function() { return current_user_can('manage_woocommerce'); },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'args' => ['type' => 'object', 'description' => 'Arguments for wc_get_products (e.g. limit, status, category).']
-                ]
-            ]
-        ]);
+
 
         wp_register_ability('woocommerce/create-product', [
             'label' => __('Create WooCommerce Product', 'wizard-ai'),
             'description' => __('Create a new WooCommerce simple product.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'woocommerce',
+            'meta' => ['plugin_name' => 'Wizard AI'],
             'execute_callback' => function($input) {
                 $product = new \WC_Product_Simple();
                 if (isset($input['name'])) $product->set_name($input['name']);
@@ -62,7 +37,8 @@ trait WooCommerce {
         wp_register_ability('woocommerce/update-product', [
             'label' => __('Update WooCommerce Product', 'wizard-ai'),
             'description' => __('Update an existing WooCommerce product.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'woocommerce',
+            'meta' => ['plugin_name' => 'Wizard AI'],
             'execute_callback' => function($input) {
                 $product = wc_get_product($input['id']);
                 if (!$product) return new \WP_Error('invalid_product', 'Product not found.');
@@ -87,39 +63,13 @@ trait WooCommerce {
             ]
         ]);
 
-        wp_register_ability('woocommerce/get-orders', [
-            'label' => __('Get WooCommerce Orders', 'wizard-ai'),
-            'description' => __('Retrieve a list of WooCommerce orders.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
-            'execute_callback' => function($input) {
-                $args = isset($input['args']) && is_array($input['args']) ? $input['args'] : [];
-                $orders = wc_get_orders(array_merge(['limit' => 10], $args));
-                $data = [];
-                foreach ($orders as $o) {
-                    $data[] = [
-                        'id' => $o->get_id(),
-                        'status' => $o->get_status(),
-                        'total' => $o->get_total(),
-                        'currency' => $o->get_currency(),
-                        'billing_email' => $o->get_billing_email(),
-                        'date_created' => $o->get_date_created() ? $o->get_date_created()->date('Y-m-d H:i:s') : null,
-                    ];
-                }
-                return ['success' => true, 'orders' => $data];
-            },
-            'permission_callback' => function() { return current_user_can('manage_woocommerce'); },
-            'input_schema' => [
-                'type' => 'object',
-                'properties' => [
-                    'args' => ['type' => 'object', 'description' => 'Arguments for wc_get_orders (e.g. limit, status).']
-                ]
-            ]
-        ]);
+
 
         wp_register_ability('woocommerce/update-order', [
             'label' => __('Update WooCommerce Order', 'wizard-ai'),
             'description' => __('Update an existing WooCommerce order.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'woocommerce',
+            'meta' => ['plugin_name' => 'Wizard AI'],
             'execute_callback' => function($input) {
                 $order = wc_get_order($input['id']);
                 if (!$order) return new \WP_Error('invalid_order', 'Order not found.');
@@ -143,7 +93,8 @@ trait WooCommerce {
         wp_register_ability('woocommerce/get-coupons', [
             'label' => __('Get WooCommerce Coupons', 'wizard-ai'),
             'description' => __('Retrieve a list of WooCommerce coupons.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'woocommerce',
+            'meta' => ['plugin_name' => 'Wizard AI'],
             'execute_callback' => function($input) {
                 $args = isset($input['args']) && is_array($input['args']) ? $input['args'] : [];
                 $coupons = wc_get_coupons(array_merge(['limit' => 10], $args));
@@ -170,7 +121,8 @@ trait WooCommerce {
         wp_register_ability('woocommerce/create-coupon', [
             'label' => __('Create WooCommerce Coupon', 'wizard-ai'),
             'description' => __('Create a new WooCommerce coupon.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'woocommerce',
+            'meta' => ['plugin_name' => 'Wizard AI'],
             'execute_callback' => function($input) {
                 $coupon = new \WC_Coupon();
                 if (isset($input['code'])) $coupon->set_code($input['code']);
@@ -194,7 +146,8 @@ trait WooCommerce {
         wp_register_ability('woocommerce/update-coupon', [
             'label' => __('Update WooCommerce Coupon', 'wizard-ai'),
             'description' => __('Update an existing WooCommerce coupon.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'woocommerce',
+            'meta' => ['plugin_name' => 'Wizard AI'],
             'execute_callback' => function($input) {
                 $coupon = new \WC_Coupon($input['id']);
                 if (!$coupon->get_id()) return new \WP_Error('invalid_coupon', 'Coupon not found.');

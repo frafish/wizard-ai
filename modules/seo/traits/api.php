@@ -5,9 +5,11 @@ trait Api {
     public function api_save_seo_settings(\WP_REST_Request $request) {
         $auto = $request->get_param('auto_optimize');
         $model = $request->get_param('preferred_model');
+        $text_model = $request->get_param('text_model');
         
         update_option('wai_auto_optimize_media', $auto);
         update_option('wai_seo_preferred_model', $model);
+        update_option('wai_seo_text_model', $text_model);
 
         return new \WP_REST_Response(['success' => true], 200);
     }

@@ -4,10 +4,11 @@ namespace WizardAi\Modules\Ai\Abilities;
 trait Wpml {
     public function register_wpml_abilities() {
         if (defined('ICL_SITEPRESS_VERSION')) {
-            wp_register_ability('ai/manage-wpml', [
+            wp_register_ability('wpml/manage', [
                 'label' => __('Manage WPML', 'wizard-ai'),
                 'description' => __('Translate posts, media, terms, and strings using WPML.', 'wizard-ai'),
-                'category' => 'wizard-blocks',
+                'category' => 'wpml',
+                'meta' => ['plugin_name' => 'Wizard AI'],
                 'execute_callback' => function($input) {
                     global $sitepress;
                     $action = $input['action'];

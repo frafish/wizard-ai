@@ -1,0 +1,1 @@
+<?php return array('dependencies' => array('react-jsx-runtime', 'wp-a11y', 'wp-api-fetch', 'wp-components', 'wp-compose', 'wp-data', 'wp-editor', 'wp-element', 'wp-i18n', 'wp-notices', 'wp-plugins', 'wp-primitives', 'wp-url', 'wp-wordcount'), 'version' => '8e1c3301f3026d92ebac');

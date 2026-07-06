@@ -3,10 +3,10 @@ namespace WizardAi\Modules\Ai\Abilities;
 
 trait WordPress {
     public function register_wordpress_abilities() {
-        wp_register_ability('ai/generate-image', [
+        wp_register_ability('wizard-ai/generate-image', [
             'label' => __('Generate Image', 'wizard-ai'),
             'description' => __('Generates an image based on a prompt and saves it to the WordPress media library. If post_id is provided, sets it as the thumbnail. Otherwise, returns the media ID so you can use it later.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $post_id = isset($input['post_id']) ? intval($input['post_id']) : 0;
                 $prompt = sanitize_text_field($input['prompt']);
@@ -69,10 +69,10 @@ trait WordPress {
             ]
         ]);
 
-        wp_register_ability('ai/manage-posts', [
+        wp_register_ability('wizard-ai/manage-posts', [
             'label' => __('Manage Posts & Pages', 'wizard-ai'),
             'description' => __('Create, read, update, or delete posts and pages.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $action = $input['action'];
                 $args = $input['args'] ?? [];
@@ -105,10 +105,10 @@ trait WordPress {
             ]
         ]);
 
-        wp_register_ability('ai/manage-comments', [
+        wp_register_ability('wizard-ai/manage-comments', [
             'label' => __('Manage Comments', 'wizard-ai'),
             'description' => __('Get, approve, spam, or trash comments.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $action = $input['action'];
                 $args = $input['args'] ?? [];
@@ -138,10 +138,10 @@ trait WordPress {
             ]
         ]);
 
-        wp_register_ability('ai/manage-users', [
+        wp_register_ability('wizard-ai/manage-users', [
             'label' => __('Manage Users & Roles', 'wizard-ai'),
             'description' => __('Manage WordPress users, roles, and capabilities.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $action = $input['action'];
                 $args = $input['args'] ?? [];
@@ -189,10 +189,10 @@ trait WordPress {
             ]
         ]);
 
-        wp_register_ability('ai/manage-media', [
+        wp_register_ability('wizard-ai/manage-media', [
             'label' => __('Manage Media', 'wizard-ai'),
             'description' => __('Manage WordPress media library (update metadata, alt text, sideload images).', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $action = $input['action'];
                 $args = $input['args'] ?? [];
@@ -252,10 +252,10 @@ trait WordPress {
             ]
         ]);
 
-        wp_register_ability('ai/manage-menus', [
+        wp_register_ability('wizard-ai/manage-menus', [
             'label' => __('Manage Menus', 'wizard-ai'),
             'description' => __('Manage WordPress menus, locations, and nav items.', 'wizard-ai'),
-            'category' => 'wizard-blocks',
+            'category' => 'wizard-ai',
             'execute_callback' => function($input) {
                 $action = $input['action'];
                 $args = $input['args'] ?? [];
