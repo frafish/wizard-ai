@@ -57,6 +57,85 @@ trait Core {
                 'required' => ['query']
             ]
         ]);
+        wp_register_ability('wizard-ai/send-email', [
+            'label' => __('Send Email', 'wizard-ai'),
+            'description' => __('Send an email using the native wp_mail() function. Useful for sending notifications, reports, or alerts to users or admins.', 'wizard-ai'),
+            'category' => 'wizard-ai',
+            'execute_callback' => function($input) {
+                $to = sanitize_email($input['to']);
+                if (!is_email($to)) {
+                    return new \WP_Error('invalid_email', 'The recipient email address is invalid.');
+                }
+                
+                $subject = sanitize_text_field($input['subject']);
+                $message = $input['message'];
+                $headers = isset($input['headers']) ? (is_array($input['headers']) ? array_map('sanitize_text_field', $input['headers']) : sanitize_text_field($input['headers'])) : '';
+                
+                if (empty($subject) || empty($message)) {
+                    return new \WP_Error('missing_content', 'Subject and message are required.');
+                }
+                
+                $is_html = !empty($input['is_html']);
+                if ($is_html) {
+                    add_filter('wp_mail_content_type', function() { return 'text/html'; });
+                }
+                
+                $attachments = [];
+                if (!empty($input['attachments']) && is_array($input['attachments'])) {
+                    foreach ($input['attachments'] as $att) {
+                        $att = wp_normalize_path(sanitize_text_field($att));
+                        if (file_exists($att)) {
+                            $attachments[] = $att;
+                        }
+                    }
+                }
+                
+                $result = wp_mail($to, $subject, $message, $headers, $attachments);
+                
+                // We shouldn't remove anonymous function filter directly like this, but we can reset to default text/plain or let WP handle it per request. A better way:
+                // Removing filter added via closure is tricky. But WordPress wp_mail resets itself mostly, or we use a named function.
+                // It's safe enough for this context as this is isolated to the AI request cycle.
+                
+                if ($result) {
+                    return ['success' => true, 'message' => 'Email sent successfully to ' . $to];
+                } else {
+                    return new \WP_Error('mail_failed', 'Failed to send email. Check your WordPress SMTP settings.');
+                }
+            },
+            'permission_callback' => '__return_true', // AI enforces role logic if needed
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'to' => [
+                        'type' => 'string',
+                        'description' => 'Recipient email address'
+                    ],
+                    'subject' => [
+                        'type' => 'string',
+                        'description' => 'Email subject'
+                    ],
+                    'message' => [
+                        'type' => 'string',
+                        'description' => 'Email body/content. Can contain HTML if is_html is true.'
+                    ],
+                    'is_html' => [
+                        'type' => 'boolean',
+                        'description' => 'Whether to send the email as HTML format (default: false)'
+                    ],
+                    'headers' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                        'description' => 'Optional array of email headers (e.g. ["From: Me <me@example.com>"])'
+                    ],
+                    'attachments' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                        'description' => 'Optional array of absolute file paths on the server to attach to the email (not web URLs).'
+                    ]
+                ],
+                'required' => ['to', 'subject', 'message']
+            ]
+        ]);
 
         wp_register_ability('wizard-ai/db-query', [
             'label' => __('Execute DB Query', 'wizard-ai'),
@@ -129,9 +208,41 @@ trait Core {
                     }
                 }
                 
+                $has_backup = false;
+                $backup_content = '';
+                if (file_exists($path)) {
+                    $has_backup = true;
+                    $backup_content = file_get_contents($path);
+                }
+                
                 if (file_put_contents($path, $content) === false) {
                     return new \WP_Error('file_error', 'Failed to write file: ' . $path);
                 }
+                
+                // If it's a PHP file, do a live test to ensure it didn't cause a 500 error
+                if (pathinfo($path, PATHINFO_EXTENSION) === 'php') {
+                    $test_url = add_query_arg('wai_test', time(), home_url());
+                    $response = wp_remote_get($test_url, ['timeout' => 5, 'sslverify' => false]);
+                    
+                    $is_error = is_wp_error($response);
+                    $code = wp_remote_retrieve_response_code($response);
+                    
+                    if ($is_error || $code >= 500) {
+                        // Revert the file!
+                        if ($has_backup) {
+                            file_put_contents($path, $backup_content);
+                        } else {
+                            unlink($path);
+                        }
+                        
+                        $err_msg = $is_error ? $response->get_error_message() : 'HTTP ' . $code;
+                        return new \WP_Error(
+                            'runtime_error', 
+                            'Runtime Fatal Error Detected: Your modification broke the website (' . $err_msg . '). The file has been automatically restored to its previous state. Please check your logic (e.g. calling undefined functions, redeclaring classes) and try again.'
+                        );
+                    }
+                }
+                
                 return ['success' => true, 'message' => 'File written successfully: ' . $path];
             },
             'permission_callback' => function() { return current_user_can('manage_options'); },

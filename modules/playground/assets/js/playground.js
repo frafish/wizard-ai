@@ -418,6 +418,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             chatEl.insertAdjacentHTML('beforeend', '<div class="wai-msg-user"><strong>You:</strong><br>' + prompt.replace(/\n/g, '<br>') + '</div>');
             promptEl.value = '';
+            promptEl.style.boxShadow = 'none';
 
             sendBtn.disabled = true;
 

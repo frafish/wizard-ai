@@ -94,6 +94,56 @@ trait WizardBlocks {
                 
                 $wb->get_filesystem()->put_contents($basepath . 'block.json', wp_json_encode($json, JSON_PRETTY_PRINT));
                 
+                // Dry Run Verification
+                if (!empty($input['html'])) {
+                    $mock_attributes = [];
+                    $attr_schema = $input['attributes'] ?? [];
+                    if (is_array($attr_schema)) {
+                        foreach ($attr_schema as $key => $schema) {
+                            if (isset($schema['default'])) {
+                                $mock_attributes[$key] = $schema['default'];
+                            } else {
+                                $t = $schema['type'] ?? 'string';
+                                if ($t === 'array' || $t === 'object') $mock_attributes[$key] = [];
+                                elseif ($t === 'boolean') $mock_attributes[$key] = false;
+                                elseif ($t === 'number' || $t === 'integer') $mock_attributes[$key] = 0;
+                                else $mock_attributes[$key] = '';
+                            }
+                        }
+                    }
+                    
+                    $error_caught = null;
+                    set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$error_caught) {
+                        $error_caught = new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+                        return true;
+                    });
+                    
+                    ob_start();
+                    try {
+                        (function() use ($basepath, $mock_attributes) {
+                            $attributes = $mock_attributes;
+                            $content = '';
+                            $block = new \stdClass();
+                            include $basepath . 'render.php';
+                        })();
+                        ob_end_clean();
+                    } catch (\Throwable $e) {
+                        ob_end_clean();
+                        $error_caught = $e;
+                    }
+                    restore_error_handler();
+                    
+                    if ($error_caught) {
+                        // Revert everything
+                        $wb->get_filesystem()->delete($basepath . 'render.php');
+                        if (!empty($input['css'])) $wb->get_filesystem()->delete($basepath . 'style.css');
+                        if (!empty($input['js'])) $wb->get_filesystem()->delete($basepath . 'script.js');
+                        $wb->get_filesystem()->delete($basepath . 'block.json');
+                        
+                        return new \WP_Error('render_failed', 'Render Verification Failed! Your render.php code threw an error/warning: "' . $error_caught->getMessage() . '" on line ' . $error_caught->getLine() . '. This usually happens when you access $attributes keys without checking isset() or using the ?? operator. The block files were NOT saved. Please fix your PHP code to be strictly safe and try again.');
+                    }
+                }
+                
                 return [
                     'success' => true, 
                     'message' => 'Block successfully created.',
@@ -152,8 +202,10 @@ trait WizardBlocks {
                 }
                 
                 // Write files
+                $backup_html = null;
                 if (isset($input['html'])) {
                     if (!empty($input['html'])) {
+                        $backup_html = file_exists($basepath . 'render.php') ? file_get_contents($basepath . 'render.php') : null;
                         $wb->get_filesystem()->put_contents($basepath . 'render.php', $input['html']);
                         $json['render'] = "file:./render.php";
                     } else {
@@ -183,6 +235,57 @@ trait WizardBlocks {
                 }
                 
                 $wb->get_filesystem()->put_contents($basepath . 'block.json', wp_json_encode($json, JSON_PRETTY_PRINT));
+                
+                // Dry Run Verification
+                if (isset($input['html']) && !empty($input['html'])) {
+                    $mock_attributes = [];
+                    $attr_schema = $json['attributes'] ?? [];
+                    if (is_array($attr_schema)) {
+                        foreach ($attr_schema as $key => $schema) {
+                            if (isset($schema['default'])) {
+                                $mock_attributes[$key] = $schema['default'];
+                            } else {
+                                $t = $schema['type'] ?? 'string';
+                                if ($t === 'array' || $t === 'object') $mock_attributes[$key] = [];
+                                elseif ($t === 'boolean') $mock_attributes[$key] = false;
+                                elseif ($t === 'number' || $t === 'integer') $mock_attributes[$key] = 0;
+                                else $mock_attributes[$key] = '';
+                            }
+                        }
+                    }
+                    
+                    $error_caught = null;
+                    set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$error_caught) {
+                        $error_caught = new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+                        return true;
+                    });
+                    
+                    ob_start();
+                    try {
+                        (function() use ($basepath, $mock_attributes) {
+                            $attributes = $mock_attributes;
+                            $content = '';
+                            $block = new \stdClass();
+                            include $basepath . 'render.php';
+                        })();
+                        ob_end_clean();
+                    } catch (\Throwable $e) {
+                        ob_end_clean();
+                        $error_caught = $e;
+                    }
+                    restore_error_handler();
+                    
+                    if ($error_caught) {
+                        // Revert HTML
+                        if ($backup_html !== null) {
+                            $wb->get_filesystem()->put_contents($basepath . 'render.php', $backup_html);
+                        } else {
+                            $wb->get_filesystem()->delete($basepath . 'render.php');
+                        }
+                        
+                        return new \WP_Error('render_failed', 'Render Verification Failed! Your modified render.php code threw an error/warning: "' . $error_caught->getMessage() . '" on line ' . $error_caught->getLine() . '. The file was NOT saved. Please fix your PHP code (e.g. check isset() for attributes) and try again.');
+                    }
+                }
                 
                 return [
                     'success' => true, 

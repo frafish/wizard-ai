@@ -25,13 +25,29 @@ trait SafeMode {
             "\$is_playground_page = isset(\$_GET['page']) && \$_GET['page'] === 'wizard-ai';\n" .
             "\$is_ai_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-ai/v1/ai') !== false;\n" .
             "\$is_toggle_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-ai/v1/toggle-safe-mode') !== false;\n" .
+            "\$is_cron = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wp-cron.php') !== false;\n" .
             "\$enforce_ai = file_exists(ABSPATH . '.wb_ai_safe') || (isset(\$_GET['wai_enforce_safe_mode']) && \$_GET['wai_enforce_safe_mode'] === '1');\n" .
+            "\n" .
+            "// Autonomous Cron Crash Recovery\n" .
+            "if (\$is_cron) {\n" .
+            "    \$cron_flag = ABSPATH . '.wb_ai_cron_running';\n" .
+            "    if (file_exists(\$cron_flag)) {\n" .
+            "        \$enforce_ai = true;\n" .
+            "    }\n" .
+            "    file_put_contents(\$cron_flag, '1');\n" .
+            "    register_shutdown_function(function() use (\$cron_flag) {\n" .
+            "        \$error = error_get_last();\n" .
+            "        if (\$error === null || !in_array(\$error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR])) {\n" .
+            "            @unlink(\$cron_flag);\n" .
+            "        }\n" .
+            "    });\n" .
+            "}\n" .
             "\$is_ai_redirect = (\$_SERVER['REQUEST_URI'] ?? '') === '/wai' || (\$_SERVER['REQUEST_URI'] ?? '') === '/wai/';\n" .
             "if (\$is_ai_redirect) {\n" .
             "    header('Location: /wp-admin/admin.php?page=wizard-ai');\n" .
             "    exit;\n" .
             "}\n" .
-            "if (\$is_playground_page || ((\$is_ai_rest || \$is_toggle_rest) && \$enforce_ai)) {\n" .
+            "if (\$is_playground_page || ((\$is_ai_rest || \$is_toggle_rest || \$is_cron) && \$enforce_ai)) {\n" .
             "    add_filter('option_active_plugins', function(\$plugins) {\n" .
             "        \$allowed = [];\n" .
             "        foreach (\$plugins as \$plugin) {\n" .

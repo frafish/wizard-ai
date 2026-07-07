@@ -36,6 +36,14 @@ trait Automation {
             'wizard-ai-automation',
             [$this, 'wb_ai_automation_page_html']
         );
+        add_submenu_page(
+            null,
+            __('Task Log', 'wizard-ai'),
+            __('Task Log', 'wizard-ai'),
+            'manage_options',
+            'wizard-ai-automation-log',
+            [$this, 'wb_ai_automation_log_page_html']
+        );
     }
 
     public function register_automation_routes() {
@@ -82,13 +90,21 @@ trait Automation {
                             <?php else: ?>
                                 <?php foreach ($tasks as $id => $task): ?>
                                 <tr>
-                                    <td><strong><?php echo esc_html($task['name']); ?></strong></td>
+                                    <td>
+                                        <strong><?php echo esc_html($task['name']); ?></strong>
+                                        <?php if (!empty($task['allow_critical'])): ?>
+                                            <br><span style="color:#d63638; font-size:11px;">⚠️ Critical Allowed</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><code><?php echo esc_html(mb_strimwidth($task['prompt'], 0, 50, '...')); ?></code></td>
                                     <td><?php echo esc_html(ucfirst($task['schedule'])); ?></td>
                                     <td><?php echo $task['last_run'] ? esc_html(date_i18n('Y-m-d H:i:s', $task['last_run'])) : __('Never', 'wizard-ai'); ?></td>
                                     <td><?php echo empty($task['active']) ? '<span style="color:red;">Paused</span>' : '<span style="color:green;">Active</span>'; ?></td>
                                     <td>
                                         <button class="button button-small wai-run-task" data-id="<?php echo esc_attr($id); ?>"><?php esc_html_e('Run Now', 'wizard-ai'); ?></button>
+                                        <?php if (!empty($task['last_log'])): ?>
+                                        <a href="<?php echo esc_url(admin_url('admin.php?page=wizard-ai-automation-log&id=' . $id)); ?>" class="button button-small" target="_blank"><?php esc_html_e('View Log', 'wizard-ai'); ?></a>
+                                        <?php endif; ?>
                                         <button class="button button-small button-link-delete wai-delete-task" data-id="<?php echo esc_attr($id); ?>"><?php esc_html_e('Delete', 'wizard-ai'); ?></button>
                                     </td>
                                 </tr>
@@ -115,7 +131,19 @@ trait Automation {
                             <option value="twicedaily"><?php esc_html_e('Twice Daily', 'wizard-ai'); ?></option>
                             <option value="daily"><?php esc_html_e('Daily', 'wizard-ai'); ?></option>
                             <option value="weekly"><?php esc_html_e('Weekly', 'wizard-ai'); ?></option>
+                            <option value="custom"><?php esc_html_e('Custom Cron...', 'wizard-ai'); ?></option>
                         </select>
+                        <div id="wai-custom-cron-wrap" style="display:none; margin-top:5px;">
+                            <input type="text" id="wai-custom-cron" style="width: 100%; font-family: monospace;" placeholder="* * * * *">
+                            <p class="description"><?php esc_html_e('Minute, Hour, Day, Month, Day of week.', 'wizard-ai'); ?></p>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 15px; padding: 10px; background: #fcf0f1; border-left: 4px solid #d63638;">
+                        <label>
+                            <input type="checkbox" id="wai-task-allow-critical">
+                            <strong><?php esc_html_e('Allow Critical Tools', 'wizard-ai'); ?></strong>
+                        </label>
+                        <p class="description" style="margin-top:5px; color:#d63638;"><?php esc_html_e('Warning: Allows the AI to execute raw PHP and DB Queries during the background task. The task will run as your user.', 'wizard-ai'); ?></p>
                     </div>
                     <button class="button button-primary" id="wai-save-task"><?php esc_html_e('Save Task', 'wizard-ai'); ?></button>
                 </div>
@@ -123,11 +151,21 @@ trait Automation {
         </div>
 
         <script>
+        document.getElementById('wai-task-schedule').addEventListener('change', function() {
+            document.getElementById('wai-custom-cron-wrap').style.display = this.value === 'custom' ? 'block' : 'none';
+        });
+
         document.getElementById('wai-save-task').addEventListener('click', function() {
             const btn = this;
             const name = document.getElementById('wai-task-name').value;
             const prompt = document.getElementById('wai-task-prompt').value;
-            const schedule = document.getElementById('wai-task-schedule').value;
+            let schedule = document.getElementById('wai-task-schedule').value;
+            if (schedule === 'custom') {
+                schedule = document.getElementById('wai-custom-cron').value;
+                if (!schedule) { alert('Custom cron syntax required'); return; }
+            }
+            
+            const allow_critical = document.getElementById('wai-task-allow-critical').checked;
             
             if (!name || !prompt) { alert('Name and prompt are required'); return; }
             btn.disabled = true;
@@ -139,7 +177,7 @@ trait Automation {
                     'Content-Type': 'application/json',
                     'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>'
                 },
-                body: JSON.stringify({ name: name, prompt: prompt, schedule: schedule })
+                body: JSON.stringify({ name: name, prompt: prompt, schedule: schedule, allow_critical: allow_critical })
             }).then(r => r.json()).then(res => {
                 location.reload();
             });
@@ -185,6 +223,28 @@ trait Automation {
         <?php
     }
 
+    public function wb_ai_automation_log_page_html() {
+        if (!current_user_can('manage_options')) return;
+        $id = isset($_GET['id']) ? sanitize_text_field($_GET['id']) : '';
+        $tasks = get_option('wizard_ai_automated_tasks', []);
+        
+        if (empty($id) || !isset($tasks[$id])) {
+            echo '<div class="wrap"><h1>' . esc_html__('Task Not Found', 'wizard-ai') . '</h1></div>';
+            return;
+        }
+        
+        $task = $tasks[$id];
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e('Execution Log:', 'wizard-ai'); ?> <?php echo esc_html($task['name']); ?></h1>
+            <p><a href="<?php echo esc_url(admin_url('admin.php?page=wizard-ai-automation')); ?>" class="button">&larr; <?php esc_html_e('Back to Automated Tasks', 'wizard-ai'); ?></a></p>
+            <div style="background: #fff; border: 1px solid #ccd0d4; padding: 20px; font-family: monospace; white-space: pre-wrap; font-size: 14px; color: #3c434a; max-width: 800px;">
+                <?php echo wp_kses_post($task['last_log'] ?? __('No log available yet.', 'wizard-ai')); ?>
+            </div>
+        </div>
+        <?php
+    }
+
     public function save_automated_task(\WP_REST_Request $request) {
         $tasks = get_option('wizard_ai_automated_tasks', []);
         $id = uniqid('task_');
@@ -192,6 +252,8 @@ trait Automation {
             'name' => sanitize_text_field($request->get_param('name')),
             'prompt' => sanitize_textarea_field($request->get_param('prompt')),
             'schedule' => sanitize_text_field($request->get_param('schedule')),
+            'allow_critical' => rest_sanitize_boolean($request->get_param('allow_critical')),
+            'user_id' => get_current_user_id(),
             'active' => true,
             'last_run' => 0
         ];
@@ -215,6 +277,36 @@ trait Automation {
         return new \WP_REST_Response(['success' => true], 200);
     }
 
+    private function _is_cron_due($expression, $last_run) {
+        $parts = explode(' ', preg_replace('/\s+/', ' ', trim($expression)));
+        if (count($parts) !== 5) return false;
+        
+        $now = time();
+        if ($now - $last_run < 50) return false;
+
+        $c_min = intval(date('i', $now));
+        $c_hour = intval(date('H', $now));
+        $c_dom = intval(date('d', $now));
+        $c_month = intval(date('m', $now));
+        $c_dow = intval(date('w', $now));
+        
+        $match = function($val, $current) {
+            if ($val === '*') return true;
+            if (strpos($val, '*/') === 0) {
+                $div = intval(substr($val, 2));
+                return $div > 0 && $current % $div === 0;
+            }
+            if (is_numeric($val)) return intval($val) === $current;
+            return false;
+        };
+        
+        return $match($parts[0], $c_min) &&
+               $match($parts[1], $c_hour) &&
+               $match($parts[2], $c_dom) &&
+               $match($parts[3], $c_month) &&
+               $match($parts[4], $c_dow);
+    }
+
     public function run_automated_tasks() {
         $tasks = get_option('wizard_ai_automated_tasks', []);
         if (empty($tasks)) return;
@@ -222,27 +314,40 @@ trait Automation {
         $now = time();
         $updated = false;
 
+        $intervals = [
+            'hourly' => 3600,
+            'twicedaily' => 43200,
+            'daily' => 86400,
+            'weekly' => 604800
+        ];
+
         foreach ($tasks as $id => &$task) {
             if (empty($task['active'])) continue;
 
-            $intervals = [
-                'hourly' => 3600,
-                'twicedaily' => 43200,
-                'daily' => 86400,
-                'weekly' => 604800
-            ];
-            $interval = isset($intervals[$task['schedule']]) ? $intervals[$task['schedule']] : 86400;
+            $should_run = false;
+            
+            // If it's currently running a long task, continue immediately
+            if (!empty($task['running_conversation_id'])) {
+                $should_run = true;
+            } else {
+                $sched = $task['schedule'];
+                if (isset($intervals[$sched])) {
+                    if ($now - $task['last_run'] >= $intervals[$sched]) {
+                        $should_run = true;
+                    }
+                } else {
+                    $should_run = $this->_is_cron_due($sched, $task['last_run']);
+                }
+            }
 
-            if ($now - $task['last_run'] >= $interval) {
-                // Time to run
+            if ($should_run) {
                 $this->_execute_task($id, true);
-                $task['last_run'] = $now;
                 $updated = true;
             }
         }
 
         if ($updated) {
-            update_option('wizard_ai_automated_tasks', $tasks);
+            // Update not needed here as _execute_task will update the option
         }
     }
 
@@ -251,23 +356,127 @@ trait Automation {
         if (!isset($tasks[$task_id])) return false;
 
         $task = $tasks[$task_id];
-        $prompt = "CRON AUTOMATED TASK: " . $task['name'] . "\n\n" . $task['prompt'];
 
         if (!class_exists('\WordPress\AiClient\AiClient')) return false;
-
-        // Auto approve and safe mode overrides
-        add_filter('wizard_ai_auto_approve', '__return_true');
-
-        $request = new \WP_REST_Request('POST', '/wizard-ai/v1/ai-chat');
-        $request->set_param('prompt', $prompt);
-        $request->set_param('conversation_id', 'cron_' . $task_id . '_' . time());
         
-        $this->handle_chat_request($request);
-        
-        if (!$is_cron) {
-            $tasks[$task_id]['last_run'] = time();
-            update_option('wizard_ai_automated_tasks', $tasks);
+        $original_user_id = get_current_user_id();
+        if (!empty($task['user_id'])) {
+            wp_set_current_user($task['user_id']);
         }
+
+        // Crash detection
+        $crashed_last_time = !empty($task['is_running']);
+        
+        // Lock the task
+        $tasks[$task_id]['is_running'] = true;
+        update_option('wizard_ai_automated_tasks', $tasks);
+
+        $is_resuming = !empty($task['running_conversation_id']);
+        $conversation_id = $is_resuming ? $task['running_conversation_id'] : 'cron_' . $task_id . '_' . time();
+        
+        $request = new \WP_REST_Request('POST', '/wizard-ai/v1/ai-chat');
+        $request->set_param('conversation_id', $conversation_id);
+        
+        if ($crashed_last_time) {
+            $request->set_param('wai_enforce_safe_mode', 1);
+        }
+        
+        if (!$is_resuming) {
+            $prompt = "CRON AUTOMATED TASK: " . $task['name'] . "\n\n" . $task['prompt'];
+            if ($crashed_last_time) {
+                $prompt .= "\n\n[SYSTEM NOTE: The previous execution crashed with a Fatal 500 Error. Safe Mode is now active. Please use tools carefully to debug and resolve the issue.]";
+            }
+            $request->set_param('prompt', $prompt);
+        } elseif (!empty($task['running_action']) && $task['running_action'] === 'tool_calls') {
+            $request->set_param('execute_tools', true);
+            // If resuming after a crash during a tool execution, we might not have the tool output. 
+            // The AiClient will attempt to re-execute the pending tool calls. Safe mode is enforced.
+        } elseif (!empty($task['running_action']) && $task['running_action'] === 'broken_site') {
+            $request->set_param('prompt', "[CRITICAL ALERT]: Your last actions completed, but caused the entire website to return a 500 Fatal Error! Safe Mode has been forcefully activated. Please review the changes you just made and fix the site immediately.");
+        }
+        
+        $request->set_param('is_cron', true);
+        
+        $response = $this->handle_chat_request($request);
+        $iterations = 0;
+        $max_iterations = 2; // Process up to 2 steps per cron tick to avoid timeouts
+        
+        $is_done = false;
+        $last_action = '';
+
+        while ($iterations < $max_iterations && !is_wp_error($response) && $response instanceof \WP_REST_Response) {
+            $data = $response->get_data();
+            $last_action = $data['action'] ?? '';
+            
+            if ($last_action === 'tool_calls') {
+                $iterations++;
+                if ($iterations >= $max_iterations) {
+                    break; // Will resume next tick
+                }
+                
+                $exec_request = new \WP_REST_Request('POST', '/wizard-ai/v1/ai-chat');
+                $exec_request->set_param('conversation_id', $conversation_id);
+                $exec_request->set_param('execute_tools', true);
+                $exec_request->set_param('is_cron', true);
+                if ($crashed_last_time) {
+                    $exec_request->set_param('wai_enforce_safe_mode', 1);
+                }
+                
+                $response = $this->handle_chat_request($exec_request);
+            } else {
+                $is_done = true;
+                break; // 'done' or error
+            }
+        }
+        
+        // Refresh tasks from DB in case other crons modified it
+        $tasks = get_option('wizard_ai_automated_tasks', []);
+        
+        if (!$is_done && !is_wp_error($response) && $last_action === 'tool_calls') {
+            // Task needs more time. Save state to resume next tick.
+            $tasks[$task_id]['running_conversation_id'] = $conversation_id;
+            $tasks[$task_id]['running_action'] = 'tool_calls';
+            $tasks[$task_id]['is_running'] = false; // Safely yielded
+        } else {
+            // Task completed its logic, but let's verify if it broke the site!
+            $test_url = add_query_arg('wai_test', time(), home_url());
+            $test_response = wp_remote_get($test_url, ['timeout' => 5, 'sslverify' => false]);
+            $is_error = is_wp_error($test_response);
+            $code = wp_remote_retrieve_response_code($test_response);
+            
+            if ($is_error || $code >= 500) {
+                // The site is broken! Force a recovery iteration!
+                file_put_contents(ABSPATH . '.wb_ai_safe', '1');
+                $tasks[$task_id]['running_conversation_id'] = $conversation_id;
+                $tasks[$task_id]['running_action'] = 'broken_site';
+                $tasks[$task_id]['is_running'] = false; // Yield to next cron
+                $tasks[$task_id]['last_log'] = "CRITICAL ERROR: The background task finished, but the website is now returning a 500 Error! Forcing an autonomous recovery iteration in Safe Mode.";
+            } else {
+                @unlink(ABSPATH . '.wb_ai_safe');
+                // Task finished completely and site is healthy
+                unset($tasks[$task_id]['running_conversation_id']);
+                unset($tasks[$task_id]['running_action']);
+                $tasks[$task_id]['is_running'] = false; // Safely finished
+                
+                // Only update last_run if it fully completed cleanly
+                $tasks[$task_id]['last_run'] = time();
+                
+                if (!is_wp_error($response) && $response instanceof \WP_REST_Response) {
+                    $data = $response->get_data();
+                    if (!empty($data['response']['text'])) {
+                        $tasks[$task_id]['last_log'] = wp_kses_post($data['response']['text']);
+                    } elseif (!empty($data['message'])) {
+                        $tasks[$task_id]['last_log'] = wp_kses_post($data['message']);
+                    }
+                } elseif (is_wp_error($response)) {
+                    $tasks[$task_id]['last_log'] = 'Error: ' . $response->get_error_message();
+                }
+            }
+        }
+
+        update_option('wizard_ai_automated_tasks', $tasks);
+        
+        wp_set_current_user($original_user_id);
 
         return true;
     }

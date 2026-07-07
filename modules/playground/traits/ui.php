@@ -273,6 +273,8 @@ trait Ui {
                                         $extra_html .= '<li><strong>Posts:</strong> ' . esc_html(implode(', ', array_keys($data['posts']))) . '</li>';
                                     }
                                     $desc = 'AI Action Rollback' . (!empty($details) ? ' (' . implode(', ', $details) . ')' : '');
+                                } elseif ($data['action'] === 'cron-rollback') {
+                                    $desc = 'Automated Task Rollback';
                                 } elseif ($data['action'] === 'plugin-backup') {
                                     $desc = 'Plugin Backup: ' . esc_html($data['slug']);
                                     $extra_html .= '<li><strong>File:</strong> ' . esc_html(basename($data['zip_path'])) . '</li>';

@@ -23,6 +23,8 @@
     border-radius: 4px;
     font-family: monospace;
     box-sizing: border-box;
+    position: relative;
+    z-index: 1;
 }
 
 #wai-playground-chat-wrapper .toggle-distraction-free {
@@ -344,9 +346,8 @@
     outline: none;
     padding-bottom: 5px;
     list-style: none;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: block;
+    position: relative;
 }
 
 .wai-card-summary-wrap::-webkit-details-marker {
@@ -364,6 +365,10 @@
     font-weight: 400;
     color: #646970;
     line-height: 1;
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
     transition: transform 0.2s ease;
 }
 

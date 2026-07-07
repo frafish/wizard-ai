@@ -292,6 +292,62 @@ trait WordPress {
                 'required' => ['action']
             ]
         ]);
+        
+        wp_register_ability('wizard-ai/wp-patterns', [
+            'label' => __('WordPress Patterns Library', 'wizard-ai'),
+            'description' => __('Search and fetch official block patterns from the WordPress.org pattern directory. Returns the ready-to-use Gutenberg HTML content for each pattern.', 'wizard-ai'),
+            'category' => 'wizard-ai',
+            'execute_callback' => function($input) {
+                $search = urlencode($input['search'] ?? '');
+                $category = urlencode($input['category'] ?? '');
+                $url = 'https://api.wordpress.org/patterns/1.0/?';
+                
+                if (!empty($search)) $url .= 'search=' . $search . '&';
+                if (!empty($category)) $url .= 'pattern-categories=' . $category . '&';
+                
+                $response = wp_remote_get($url, ['timeout' => 15]);
+                if (is_wp_error($response)) {
+                    return $response;
+                }
+                
+                $body = wp_remote_retrieve_body($response);
+                $data = json_decode($body, true);
+                
+                if (!is_array($data)) {
+                    return new \WP_Error('api_error', 'Invalid response from WordPress.org API.');
+                }
+                
+                $results = [];
+                // Return top 5 to avoid token exhaustion
+                foreach (array_slice($data, 0, 5) as $pattern) {
+                    $results[] = [
+                        'title' => $pattern['title']['rendered'] ?? '',
+                        'content' => $pattern['content'] ?? '',
+                        'categories' => $pattern['pattern-categories'] ?? [],
+                        'viewport_width' => $pattern['viewport_width'] ?? ''
+                    ];
+                }
+                
+                if (empty($results)) {
+                    return ['success' => true, 'message' => 'No patterns found. Try a different search term.'];
+                }
+                
+                return [
+                    'success' => true,
+                    'count' => count($results),
+                    'patterns' => $results
+                ];
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'search' => ['type' => 'string', 'description' => 'Keyword to search for patterns (e.g. "header", "hero", "pricing")'],
+                    'category' => ['type' => 'string', 'description' => 'Optional category slug or ID (e.g. "header", "footer", "buttons", "gallery", "text")']
+                ],
+                'required' => []
+            ]
+        ]);
 
     }
 }

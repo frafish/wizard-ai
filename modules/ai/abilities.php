@@ -51,9 +51,5 @@ class Abilities {
         $registrar->register_woocommerce_abilities();
         $registrar->register_wpml_abilities();
         $registrar->register_wizard_blocks_abilities();
-        
-        if (file_exists(WIZARD_AI_PATH . 'modules/ai/abilities/frontend-form.php')) {
-            require_once WIZARD_AI_PATH . 'modules/ai/abilities/frontend-form.php';
-        }
     }
 }

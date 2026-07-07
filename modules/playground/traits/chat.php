@@ -329,8 +329,9 @@ trait Chat {
                     $backup_dir = $upload_dir['basedir'] . '/wai/backup';
                     if (!is_dir($backup_dir)) wp_mkdir_p($backup_dir);
                     
+                    $is_cron = $request->get_param('is_cron');
                     $backup_data = [
-                        'action' => 'global-rollback',
+                        'action' => $is_cron ? 'cron-rollback' : 'global-rollback',
                         'options' => [],
                         'posts' => [],
                         'files' => [],

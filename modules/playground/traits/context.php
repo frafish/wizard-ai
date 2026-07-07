@@ -158,6 +158,8 @@ trait Context {
 
         return "ENVIRONMENT DETAILS:\n"
             . "- WordPress Version: " . get_bloginfo('version') . "\n"
+            . "- PHP Version: " . phpversion() . "\n"
+            . "- PHP Memory Limit: " . ini_get('memory_limit') . "\n"
             . "- Site URL: " . get_bloginfo('url') . "\n"
             . "- ABSPATH (Root Directory): " . ABSPATH . "\n"
             . "- WP_CONTENT_DIR: " . WP_CONTENT_DIR . "\n\n"
