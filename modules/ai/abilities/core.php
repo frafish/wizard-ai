@@ -178,6 +178,71 @@ trait Core {
             ]
         ]);
         
+        wp_register_ability('wizard-ai/gutenberg-live-push', [
+            'label' => __('Gutenberg Live Push', 'wizard-ai'),
+            'description' => __('Push raw Gutenberg block HTML directly into the user\'s active block editor session. The blocks will appear on their screen instantly via JS without saving to the database, allowing them to review the layout.', 'wizard-ai'),
+            'category' => 'wizard-ai',
+            'execute_callback' => function($input) {
+                $user_id = get_current_user_id();
+                if (!$user_id) {
+                    return new \WP_Error('unauthorized', 'No active user session found to push blocks to.');
+                }
+                
+                $transient_key = 'wai_editor_push_' . $user_id;
+                set_transient($transient_key, $input['blocks'], 60);
+                
+                return ['success' => true, 'message' => 'Blocks pushed to the editor canvas successfully. They will appear on the screen shortly.'];
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'blocks' => ['type' => 'string', 'description' => 'Raw Gutenberg block HTML (e.g. <!-- wp:paragraph --><p>Hello</p><!-- /wp:paragraph -->)']
+                ],
+                'required' => ['blocks']
+            ]
+        ]);
+
+        wp_register_ability('wizard-ai/sandbox-write', [
+            'label' => __('Sandbox Write', 'wizard-ai'),
+            'description' => __('Write persistent PHP code into the Wizard AI safe sandbox instead of modifying functions.php. Safe sandbox prevents fatal errors from taking down the site.', 'wizard-ai'),
+            'category' => 'wizard-ai',
+            'execute_callback' => function($input) {
+                $filename = sanitize_file_name($input['filename']);
+                if (empty($filename) || pathinfo($filename, PATHINFO_EXTENSION) !== 'php') {
+                    return new \WP_Error('invalid_filename', 'Filename must end in .php');
+                }
+                $sandbox_dir = WP_CONTENT_DIR . '/wai-sandbox/';
+                if (!is_dir($sandbox_dir)) {
+                    wp_mkdir_p($sandbox_dir);
+                }
+                $path = $sandbox_dir . $filename;
+                $content = $input['content'];
+                
+                $tmp_file = tempnam(sys_get_temp_dir(), 'wai_php_');
+                file_put_contents($tmp_file, $content);
+                exec('php -l ' . escapeshellarg($tmp_file) . ' 2>&1', $output, $return_var);
+                unlink($tmp_file);
+                if ($return_var !== 0) {
+                    return new \WP_Error('syntax_error', 'PHP Syntax error detected: ' . implode("\n", $output));
+                }
+                
+                if (file_put_contents($path, $content) === false) {
+                    return new \WP_Error('file_error', 'Failed to write to sandbox.');
+                }
+                return ['success' => true, 'message' => "Sandbox file $filename created successfully. It will be executed on the next page load automatically."];
+            },
+            'permission_callback' => function() { return current_user_can('manage_options'); },
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'filename' => ['type' => 'string', 'description' => 'Name of the PHP file to create (e.g. custom_feature.php)'],
+                    'content' => ['type' => 'string', 'description' => 'Full PHP file content (must include <?php opening tag).']
+                ],
+                'required' => ['filename', 'content']
+            ]
+        ]);
+
         wp_register_ability('wizard-ai/modify-file', [
             'label' => __('Modifying File', 'wizard-ai'),
             'description' => __('Writes or overwrites a file on the server with the provided content. You MUST always provide the full \'content\' parameter. To read a file, use the read-file tool instead. Safely restricted to wp-content.', 'wizard-ai'),

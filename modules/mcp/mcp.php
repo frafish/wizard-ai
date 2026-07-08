@@ -383,7 +383,8 @@ class Mcp {
                                 You are managing a WordPress site that exposes an MCP Server over REST API. You must communicate with it by using your terminal/command tools to execute `curl` requests.<br><br>
                                 <strong>Endpoint:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1/mcp'); ?><br>
                                 <strong>Authentication Header:</strong> X-WAI-MCP-TOKEN: <?php echo esc_html($token); ?><br><br>
-                                If the REST API returns a 500 error, append `?wai_enforce_safe_mode=1` to the endpoint URL to bypass broken plugins and fix the fatal error safely.
+                                If the REST API returns a 500 error, append `?wai_enforce_safe_mode=1` to the endpoint URL to bypass broken plugins and fix the fatal error safely.<br><br>
+                                <strong>NEVER</strong> modify `functions.php` to add new custom PHP logic. Always use the `wizard-ai/sandbox-write` tool to create persistent custom scripts safely.
                             </div>
                         </li>
                         <li><strong><?php esc_html_e('Step 2: Listing Available Tools (Discovery)', 'wizard-ai'); ?></strong><br>
@@ -399,6 +400,18 @@ class Mcp {
                             </div>
                         </li>
                     </ol>
+                </div>
+                
+                <!-- Emergency Recovery Login -->
+                <div class="postbox" style="flex: 1; min-width: 300px; padding: 20px;">
+                    <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('Emergency Safe Mode Login', 'wizard-ai'); ?></h2>
+                    <p><?php esc_html_e('If a plugin or theme causes a fatal 500 error that locks you out of the WordPress admin, use this URL to safely log in with all plugins disabled:', 'wizard-ai'); ?></p>
+                    <div style="background: #fcf0f1; border-left: 4px solid #d63638; padding: 15px; margin-bottom: 15px; font-family: monospace; overflow-x: auto; font-weight: bold;">
+                        <a href="<?php echo esc_url(wp_login_url() . '?wai_enforce_safe_mode=1'); ?>" target="_blank">
+                            <?php echo esc_url(wp_login_url() . '?wai_enforce_safe_mode=1'); ?>
+                        </a>
+                    </div>
+                    <p><em><?php esc_html_e('Save this URL somewhere safe. When you visit it, Wizard AI\'s Safe Mode will activate on the login screen, allowing you to bypass fatal errors and access the dashboard to disable the offending plugin.', 'wizard-ai'); ?></em></p>
                 </div>
             </div>
 

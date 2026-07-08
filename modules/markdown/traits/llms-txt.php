@@ -4,6 +4,7 @@ namespace WizardAi\Modules\Markdown\Traits;
 trait LlmsTxt {
     public function register_llmstxt_hooks() {
         if (get_option('wbai_markdown_enabled', '1') !== '1') return;
+        if (get_option('wbai_markdown_llmstxt_enabled', '1') !== '1') return;
         
         // Add rewrite rule for llms.txt
         add_action('init', [$this, 'add_llmstxt_rewrite_rule']);

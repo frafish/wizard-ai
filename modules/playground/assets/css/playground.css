@@ -118,6 +118,20 @@
     position: relative;
 }
 
+@keyframes wai-prompt-pulse {
+    0% {
+        box-shadow: 0 0 55px var(--wp-admin-theme-color-darker-10);
+    }
+
+    50% {
+        box-shadow: 0 0 75px var(--wp-admin-theme-color-darker-10);
+    }
+
+    100% {
+        box-shadow: 0 0 55px var(--wp-admin-theme-color-darker-10);
+    }
+}
+
 #wai-playground-prompt {
     width: 100%;
     height: 82px;
@@ -125,8 +139,24 @@
     border-radius: 50px;
     padding: 30px;
     padding-right: 50px;
+    padding-left: 60px;
     resize: none;
-    box-shadow: 0 0 60px var(--wp-admin-theme-color-darker-10);
+    box-shadow: 0 0 55px var(--wp-admin-theme-color-darker-10);
+    /*animation: wai-prompt-pulse 5s infinite ease-in-out;*/
+}
+
+#wai-playground-attachment-preview {
+    display: none;
+    position: absolute;
+    bottom: 100px;
+    left: 15px;
+    background: #fff;
+    padding: 5px;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    gap: 5px;
+    flex-wrap: wrap;
+    max-width: 80%;
 }
 
 #wai-speech-to-text {
@@ -144,6 +174,23 @@
 }
 
 #wai-speech-to-text:hover {
+    color: #2271b1;
+}
+
+#wai-attach-media {
+    position: absolute;
+    left: 25px;
+    top: 30px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    padding: 0;
+    color: #50575e;
+    transition: color 0.2s ease;
+}
+
+#wai-attach-media:hover {
     color: #2271b1;
 }
 

@@ -434,6 +434,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             } catch(err) {
                                 console.error('Form fill error:', err);
                             }
+                        } else if (action.type === 'show_email_form') {
+                            const hint = document.getElementById('wai-chatbot-email-hint');
+                            if (hint) {
+                                hint.style.display = 'block';
+                                setTimeout(() => {
+                                    messagesArea.scrollTop = messagesArea.scrollHeight;
+                                }, 100);
+                            }
                         } else if (action.type === 'elementor_insert' && window.elementor) {
                             try {
                                 let section = {
@@ -494,4 +502,34 @@ document.addEventListener('DOMContentLoaded', function() {
             sendMessage();
         }
     });
+
+    let lastPollTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    setInterval(async () => {
+        if (!sessionId) return;
+        const pollUrl = wizardAiChatbotData.rest_url + '/poll';
+        try {
+            const response = await fetch(pollUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': wizardAiChatbotData.nonce
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    last_time: lastPollTime
+                })
+            });
+            const data = await response.json();
+            if (data.success && data.messages && data.messages.length > 0) {
+                data.messages.forEach(msg => {
+                    // Avoid duplicating user messages we just sent
+                    if (msg.role !== 'user') {
+                        addMessage(msg.text, msg.role);
+                    }
+                    lastPollTime = msg.date_gmt;
+                });
+            }
+        } catch(e) {}
+    }, 5000);
+
 });

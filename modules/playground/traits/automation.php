@@ -127,10 +127,10 @@ trait Automation {
                     <div style="margin-bottom: 10px;">
                         <label><strong><?php esc_html_e('Schedule', 'wizard-ai'); ?></strong></label><br>
                         <select id="wai-task-schedule" style="width: 100%;">
-                            <option value="hourly"><?php esc_html_e('Hourly', 'wizard-ai'); ?></option>
-                            <option value="twicedaily"><?php esc_html_e('Twice Daily', 'wizard-ai'); ?></option>
-                            <option value="daily"><?php esc_html_e('Daily', 'wizard-ai'); ?></option>
-                            <option value="weekly"><?php esc_html_e('Weekly', 'wizard-ai'); ?></option>
+                            <option value="hourly"><?php esc_html_e('Hourly (0 * * * *)', 'wizard-ai'); ?></option>
+                            <option value="twicedaily"><?php esc_html_e('Twice Daily (0 0,12 * * *)', 'wizard-ai'); ?></option>
+                            <option value="daily"><?php esc_html_e('Daily (0 0 * * *)', 'wizard-ai'); ?></option>
+                            <option value="weekly"><?php esc_html_e('Weekly (0 0 * * 0)', 'wizard-ai'); ?></option>
                             <option value="custom"><?php esc_html_e('Custom Cron...', 'wizard-ai'); ?></option>
                         </select>
                         <div id="wai-custom-cron-wrap" style="display:none; margin-top:5px;">
@@ -446,13 +446,13 @@ trait Automation {
             
             if ($is_error || $code >= 500) {
                 // The site is broken! Force a recovery iteration!
-                file_put_contents(ABSPATH . '.wb_ai_safe', '1');
+                file_put_contents(ABSPATH . '.wai_safe', '1');
                 $tasks[$task_id]['running_conversation_id'] = $conversation_id;
                 $tasks[$task_id]['running_action'] = 'broken_site';
                 $tasks[$task_id]['is_running'] = false; // Yield to next cron
                 $tasks[$task_id]['last_log'] = "CRITICAL ERROR: The background task finished, but the website is now returning a 500 Error! Forcing an autonomous recovery iteration in Safe Mode.";
             } else {
-                @unlink(ABSPATH . '.wb_ai_safe');
+                @unlink(ABSPATH . '.wai_safe');
                 // Task finished completely and site is healthy
                 unset($tasks[$task_id]['running_conversation_id']);
                 unset($tasks[$task_id]['running_action']);

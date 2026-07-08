@@ -26,7 +26,8 @@ trait SafeMode {
             "\$is_ai_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-ai/v1/ai') !== false;\n" .
             "\$is_toggle_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-ai/v1/toggle-safe-mode') !== false;\n" .
             "\$is_cron = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wp-cron.php') !== false;\n" .
-            "\$enforce_ai = file_exists(ABSPATH . '.wb_ai_safe') || (isset(\$_GET['wai_enforce_safe_mode']) && \$_GET['wai_enforce_safe_mode'] === '1');\n" .
+            "\$is_login = strpos(\$_SERVER['REQUEST_URI'] ?? '', 'wp-login.php') !== false;\n" .
+            "\$enforce_ai = file_exists(ABSPATH . '.wai_safe') || (isset(\$_GET['wai_enforce_safe_mode']) && \$_GET['wai_enforce_safe_mode'] === '1');\n" .
             "\n" .
             "// Autonomous Cron Crash Recovery\n" .
             "if (\$is_cron) {\n" .
@@ -47,7 +48,7 @@ trait SafeMode {
             "    header('Location: /wp-admin/admin.php?page=wizard-ai');\n" .
             "    exit;\n" .
             "}\n" .
-            "if (\$is_playground_page || ((\$is_ai_rest || \$is_toggle_rest || \$is_cron) && \$enforce_ai)) {\n" .
+            "if (\$is_playground_page || ((\$is_ai_rest || \$is_toggle_rest || \$is_cron || \$is_login) && \$enforce_ai)) {\n" .
             "    add_filter('option_active_plugins', function(\$plugins) {\n" .
             "        \$allowed = [];\n" .
             "        foreach (\$plugins as \$plugin) {\n" .
@@ -70,6 +71,31 @@ trait SafeMode {
             "    });\n" .
             "    add_filter('stylesheet', function(\$theme) { return 'wizard-ai-safe-theme'; });\n" .
             "    add_filter('template', function(\$theme) { return 'wizard-ai-safe-theme'; });\n" .
+            "}\n" .
+            "\n" .
+            "// --- Wizard AI Sandbox ---\n" .
+            "\$sandbox_dir = WP_CONTENT_DIR . '/wai-sandbox/';\n" .
+            "if (is_dir(\$sandbox_dir) && !file_exists(\$sandbox_dir . '.wai_crash')) {\n" .
+            "    \$sandbox_files = glob(\$sandbox_dir . '*.php');\n" .
+            "    if (\$sandbox_files) {\n" .
+            "        \$crashed_file = \$sandbox_dir . '.wai_crash';\n" .
+            "        global \$wai_current_sandbox_file;\n" .
+            "        \$wai_current_sandbox_file = null;\n" .
+            "        register_shutdown_function(function() use (\$crashed_file) {\n" .
+            "            global \$wai_current_sandbox_file;\n" .
+            "            if (\$wai_current_sandbox_file !== null) {\n" .
+            "                \$error = error_get_last();\n" .
+            "                if (\$error !== null && (\$error['type'] & (E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR))) {\n" .
+            "                    file_put_contents(\$crashed_file, wp_json_encode(['error' => \$error, 'file' => \$wai_current_sandbox_file]));\n" .
+            "                }\n" .
+            "            }\n" .
+            "        });\n" .
+            "        foreach (\$sandbox_files as \$file) {\n" .
+            "            \$wai_current_sandbox_file = \$file;\n" .
+            "            require_once \$file;\n" .
+            "        }\n" .
+            "        \$wai_current_sandbox_file = null;\n" .
+            "    }\n" .
             "}\n";
 
         if (!file_exists($plugin_file) || file_get_contents($plugin_file) !== $code) {
@@ -93,7 +119,7 @@ trait SafeMode {
     }
 
     public function toggle_safe_mode(\WP_REST_Request $request) {
-        $flag_file = ABSPATH . '.wb_ai_safe';
+        $flag_file = ABSPATH . '.wai_safe';
         $force = $request->get_param('force');
         
         if ($force === 'enable') {

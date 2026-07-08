@@ -130,6 +130,7 @@ trait ModelsUi {
                     <input type="checkbox" id="wai-cron-enabled" <?php echo $cron_enabled ? 'checked' : ''; ?>>
                     <?php esc_html_e('Enable automatic daily update of models', 'wizard-ai'); ?>
                 </label>
+
                 <button id="wai-trigger-update" class="button button-secondary"><?php esc_html_e('Force Update Models Now', 'wizard-ai'); ?></button>
                 <button id="wai-save-settings" class="button button-primary"><?php esc_html_e('Save Settings', 'wizard-ai'); ?></button>
                 <span id="wai-settings-spinner" class="spinner"></span>

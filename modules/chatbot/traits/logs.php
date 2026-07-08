@@ -113,12 +113,17 @@ trait Logs {
                     echo '<p><strong>' . esc_html__('User Email:', 'wizard-ai') . '</strong> ' . esc_html($email) . '</p>';
                 }
                 echo '<hr>';
-
+                echo '<div id="wai_chat_history_container">';
                 foreach ($comments as $c) {
                     $is_ai = $c->comment_author === 'Wizard AI';
                     $bg = $is_ai ? '#f1f1f1' : '#e3f2fd';
                     $align = $is_ai ? 'left' : 'right';
                     $margin = $is_ai ? '0 50px 15px 0' : '0 0 15px 50px';
+                    
+                    if (strpos($c->comment_author, 'Operator') !== false) {
+                        $bg = '#fff3cd'; // Yellowish for operator
+                        $margin = '0 50px 15px 0'; // AI side
+                    }
                     
                     $author_name_html = esc_html($c->comment_author);
                     if (!$is_ai && !empty($c->user_id) && $c->user_id > 0) {
@@ -129,7 +134,7 @@ trait Logs {
                     $del_msg_url = wp_nonce_url(admin_url('admin.php?page=wizard-ai-chatbot-logs&action=delete_message&comment_id=' . $c->comment_ID . '&session_id=' . urlencode($session_id)), 'wai_delete_log');
                     $edit_msg_url = get_edit_comment_link($c->comment_ID);
                     
-                    echo '<div style="background: ' . esc_attr($bg) . '; padding: 15px; border-radius: 8px; margin: ' . esc_attr($margin) . '; text-align: left; position: relative;">';
+                    echo '<div class="wai-chat-message-row" data-date="' . esc_attr($c->comment_date_gmt) . '" style="background: ' . esc_attr($bg) . '; padding: 15px; border-radius: 8px; margin: ' . esc_attr($margin) . '; text-align: left; position: relative;">';
                     echo '<div style="position: absolute; top: 10px; right: 10px;">';
                     echo '<a href="' . esc_url($edit_msg_url) . '" style="color: #2271b1; text-decoration: none; margin-right: 8px;" title="' . esc_attr__('Edit Message natively', 'wizard-ai') . '"><span class="dashicons dashicons-edit"></span></a>';
                     echo '<a href="' . esc_url($del_msg_url) . '" onclick="return confirm(\'' . esc_js(__('Delete this message?', 'wizard-ai')) . '\');" style="color: #b32d2e; text-decoration: none;" title="' . esc_attr__('Delete Message', 'wizard-ai') . '"><span class="dashicons dashicons-trash"></span></a>';
@@ -138,6 +143,106 @@ trait Logs {
                     echo '<div style="margin-top: 8px;">' . wp_kses_post($c->comment_content) . '</div>';
                     echo '</div>';
                 }
+                echo '</div>';
+                
+                $manual_mode = get_transient('wai_chatbot_manual_' . $session_id);
+                
+                echo '<hr>';
+                echo '<h4>' . esc_html__('Operator Takeover', 'wizard-ai') . '</h4>';
+                echo '<p>';
+                echo '<label><input type="checkbox" id="wai_manual_mode_toggle" data-session="' . esc_attr($session_id) . '" ' . checked($manual_mode, true, false) . '> ' . esc_html__('Enable Manual Mode (AI will stop replying)', 'wizard-ai') . '</label>';
+                echo '</p>';
+                
+                echo '<div id="wai_operator_chat_area" style="display: ' . ($manual_mode ? 'block' : 'none') . ';">';
+                echo '<textarea id="wai_operator_message" style="width: 100%; height: 80px;" placeholder="' . esc_attr__('Type your message here...', 'wizard-ai') . '"></textarea>';
+                echo '<br><button id="wai_operator_send_btn" class="button button-primary" style="margin-top: 10px;" data-session="' . esc_attr($session_id) . '">' . esc_html__('Send Message', 'wizard-ai') . '</button>';
+                echo '</div>';
+                ?>
+                <script>
+                jQuery(document).ready(function($) {
+                    $('#wai_manual_mode_toggle').on('change', function() {
+                        var isChecked = $(this).is(':checked');
+                        var sessionId = $(this).data('session');
+                        if (isChecked) {
+                            $('#wai_operator_chat_area').slideDown();
+                        } else {
+                            $('#wai_operator_chat_area').slideUp();
+                        }
+                        
+                        $.ajax({
+                            url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/chatbot/toggle-manual')); ?>',
+                            method: 'POST',
+                            data: { session_id: sessionId, manual: isChecked ? 1 : 0 },
+                            beforeSend: function(xhr) {
+                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                            }
+                        });
+                    });
+                    
+                    $('#wai_operator_send_btn').on('click', function(e) {
+                        e.preventDefault();
+                        var btn = $(this);
+                        var sessionId = btn.data('session');
+                        var msg = $('#wai_operator_message').val().trim();
+                        if (!msg) return;
+                        
+                        btn.prop('disabled', true).text('<?php echo esc_js(__('Sending...', 'wizard-ai')); ?>');
+                        $.ajax({
+                            url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/chatbot/operator-send')); ?>',
+                            method: 'POST',
+                            data: { session_id: sessionId, message: msg },
+                            beforeSend: function(xhr) {
+                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                            },
+                            success: function(response) {
+                                btn.prop('disabled', false).text('<?php echo esc_js(__('Send Message', 'wizard-ai')); ?>');
+                                if (response.success) {
+                                    $('#wai_operator_message').val('');
+                                    // Reload just the container via AJAX
+                                    $.get(window.location.href, function(html) {
+                                        var newContainer = $(html).find('#wai_chat_history_container');
+                                        if (newContainer.length) {
+                                            $('#wai_chat_history_container').replaceWith(newContainer);
+                                        }
+                                    });
+                                } else {
+                                    alert(response.message || 'Error sending message.');
+                                }
+                            },
+                            error: function() {
+                                btn.prop('disabled', false).text('<?php echo esc_js(__('Send Message', 'wizard-ai')); ?>');
+                                alert('<?php echo esc_js(__('Failed to communicate with server.', 'wizard-ai')); ?>');
+                            }
+                        });
+                    });
+                    
+                    // Simple Polling for backend view to see live user messages
+                    setInterval(function() {
+                        var lastDateStr = $('.wai-chat-message-row').last().data('date');
+                        if (!lastDateStr) return;
+                        
+                        $.ajax({
+                            url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/chatbot/poll')); ?>',
+                            method: 'POST',
+                            data: { session_id: '<?php echo esc_js($session_id); ?>', last_time: lastDateStr },
+                            beforeSend: function(xhr) {
+                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                            },
+                            success: function(response) {
+                                if (response.success && response.messages && response.messages.length > 0) {
+                                    $.get(window.location.href, function(html) {
+                                        var newContainer = $(html).find('#wai_chat_history_container');
+                                        if (newContainer.length) {
+                                            $('#wai_chat_history_container').replaceWith(newContainer);
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    }, 5000);
+                });
+                </script>
+                <?php
                 echo '</div>';
             }
         } else {
@@ -290,5 +395,60 @@ trait Logs {
         } catch (\Exception $e) {
             return new \WP_REST_Response(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    public function handle_chatbot_toggle_manual(\WP_REST_Request $request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $manual = (bool)$request->get_param('manual');
+        if (empty($session_id)) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Missing session ID.', 'wizard-ai')], 400);
+        }
+
+        if ($manual) {
+            set_transient('wai_chatbot_manual_' . $session_id, 1, 12 * HOUR_IN_SECONDS);
+        } else {
+            delete_transient('wai_chatbot_manual_' . $session_id);
+        }
+
+        return new \WP_REST_Response(['success' => true], 200);
+    }
+
+    public function handle_chatbot_operator_send(\WP_REST_Request $request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $message = sanitize_text_field($request->get_param('message'));
+
+        if (empty($session_id) || empty($message)) {
+            return new \WP_REST_Response(['success' => false, 'message' => __('Missing parameters.', 'wizard-ai')], 400);
+        }
+
+        $current_user = wp_get_current_user();
+        $author_name = 'Operator (' . $current_user->display_name . ')';
+
+        global $wpdb;
+        $post_id = (int) $wpdb->get_var($wpdb->prepare("
+            SELECT c.comment_post_ID 
+            FROM {$wpdb->comments} c
+            INNER JOIN {$wpdb->commentmeta} m ON c.comment_ID = m.comment_id
+            WHERE m.meta_key = 'wai_session_id' AND m.meta_value = %s
+            LIMIT 1
+        ", $session_id));
+
+        $comment_id = wp_insert_comment([
+            'comment_post_ID' => $post_id,
+            'comment_author' => wp_slash($author_name),
+            'comment_author_email' => $current_user->user_email,
+            'user_id' => $current_user->ID,
+            'comment_content' => wp_slash($message),
+            'comment_type' => 'wai_chat',
+            'comment_approved' => 1
+        ]);
+
+        if ($comment_id) {
+            update_comment_meta($comment_id, 'wai_session_id', $session_id);
+            update_comment_meta($comment_id, 'wai_chat_log', 1);
+            return new \WP_REST_Response(['success' => true, 'comment_id' => $comment_id], 200);
+        }
+
+        return new \WP_REST_Response(['success' => false, 'message' => __('Failed to insert message.', 'wizard-ai')], 500);
     }
 }

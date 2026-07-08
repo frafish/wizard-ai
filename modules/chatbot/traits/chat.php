@@ -7,21 +7,101 @@ trait Chat {
             return new \WP_Error('ai_not_found', 'AI Client not found', ['status' => 500]);
         }
         
-        if (function_exists('wc_load_cart')) {
-            wc_load_cart();
+        $session_id = sanitize_text_field($request->get_param('session_id') ?: wp_generate_uuid4());
+        
+        $prompt = sanitize_text_field($request->get_param('prompt'));
+        if (empty($prompt)) {
+            return new \WP_Error('missing_prompt', 'Prompt is required', ['status' => 400]);
         }
-
+        
         $hp = sanitize_text_field($request->get_param('wai_hp'));
         if (!empty($hp)) {
             return new \WP_Error('bot_detected', 'Bot activity detected', ['status' => 403]);
         }
 
-        $prompt = sanitize_text_field($request->get_param('prompt'));
-        if (empty($prompt)) {
-            return new \WP_Error('missing_prompt', 'Prompt is required', ['status' => 400]);
+        $request_post_id = absint($request->get_param('current_post_id'));
+
+        $chat_id = "wai_chatbot_" . $session_id;
+        $stored_name = get_transient($chat_id . '_name') ?: 'Visitor';
+        $stored_email = get_transient($chat_id . '_email') ?: '';
+        
+        $current_user = wp_get_current_user();
+        $user_id = $current_user->ID;
+        if (!$user_id && !empty($stored_email)) {
+            $matched_user = get_user_by('email', $stored_email);
+            if ($matched_user) {
+                $user_id = $matched_user->ID;
+                if ($stored_name === 'Visitor') {
+                    $stored_name = $matched_user->display_name;
+                }
+            }
+        }
+        
+        $author_name = $user_id ? $current_user->display_name : $stored_name;
+        $author_email = $user_id ? $current_user->user_email : $stored_email;
+
+        $comment_ip = preg_replace('/[^0-9a-fA-F:., ]/', '', $_SERVER['REMOTE_ADDR'] ?? '');
+        $comment_agent = isset($_SERVER['HTTP_USER_AGENT']) ? mb_substr($_SERVER['HTTP_USER_AGENT'], 0, 254) : '';
+        
+        $comment_data = [
+            'comment_post_ID' => $request_post_id,
+            'comment_author' => wp_slash($author_name),
+            'comment_author_email' => wp_slash($author_email),
+            'user_id' => $user_id,
+            'comment_content' => wp_slash($prompt),
+            'comment_type' => 'wai_chat',
+            'comment_author_IP' => $comment_ip,
+            'comment_agent' => $comment_agent,
+            'comment_date' => current_time('mysql'),
+            'comment_date_gmt' => current_time('mysql', 1)
+        ];
+        
+        $filtered_comment = wp_filter_comment($comment_data);
+        if (is_wp_error($filtered_comment)) {
+            return new \WP_Error('spam_detected', $filtered_comment->get_error_message(), ['status' => 403]);
+        }
+        $approved = wp_allow_comment($filtered_comment, true);
+        if (is_wp_error($approved)) {
+            return new \WP_Error('spam_detected', $approved->get_error_message(), ['status' => 403]);
+        }
+        if ($approved === 'spam' || $approved === 'trash') {
+            return new \WP_Error('spam_detected', __('Message flagged as spam.', 'wizard-ai'), ['status' => 403]);
         }
 
-        $session_id = sanitize_text_field($request->get_param('session_id') ?: wp_generate_uuid4());
+        $manual_mode = get_transient('wai_chatbot_manual_' . $session_id);
+        if ($manual_mode) {
+            // Save user message
+            if (get_option('wai_chatbot_track_sessions', 0)) {
+                $user_comment_id = wp_insert_comment([
+                    'comment_post_ID' => $request_post_id,
+                    'comment_author' => wp_slash($author_name),
+                    'comment_author_email' => $author_email,
+                    'user_id' => $user_id,
+                    'comment_content' => wp_slash($prompt),
+                    'comment_type' => 'wai_chat',
+                    'comment_author_IP' => $comment_ip,
+                    'comment_agent' => $comment_agent,
+                    'comment_approved' => 1
+                ]);
+                if ($user_comment_id) {
+                    update_comment_meta($user_comment_id, 'wai_session_id', $session_id);
+                    update_comment_meta($user_comment_id, 'wai_chat_log', 1);
+                }
+            }
+            
+            // Do not reply from AI, wait for polling
+            return rest_ensure_response([
+                'success' => true,
+                'reply' => '',
+                'session_id' => $session_id,
+                'frontend_actions' => [],
+                'manual_mode' => true
+            ]);
+        }
+
+        if (function_exists('wc_load_cart')) {
+            wc_load_cart();
+        }
 
         // We fetch models configured by admin or just a default text generation model.
         // Try getting preferred model from admin, or fallback to first available.
@@ -130,6 +210,28 @@ trait Chat {
         }
         $is_first_message = empty($messages);
         
+        if ($is_first_message && get_option('wai_chatbot_notify_new_session', 0)) {
+            $notify_email = get_option('wai_chatbot_notify_email', get_option('admin_email'));
+            if (!empty($notify_email)) {
+                $subject = __('New Chatbot Session Started', 'wizard-ai');
+                $message_body = sprintf(__('A new chatbot session has been started on your website %s.', 'wizard-ai'), get_bloginfo('name')) . "\n\n";
+                $message_body .= sprintf(__('Session ID: %s', 'wizard-ai'), $session_id) . "\n\n";
+                
+                $log_url = admin_url('admin.php?page=wizard-ai-chatbot-logs&action=view&session_id=' . urlencode($session_id));
+                $message_body .= sprintf(__('You can view the conversation and optionally take over here: %s', 'wizard-ai'), $log_url) . "\n\n";
+                $message_body .= sprintf(__('User Message: %s', 'wizard-ai'), $prompt);
+                
+                wp_mail($notify_email, $subject, $message_body);
+            }
+        }
+
+        if (preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $prompt, $matches)) {
+            $chat_id = "wai_chatbot_" . $session_id;
+            if (!get_transient($chat_id . '_email')) {
+                set_transient($chat_id . '_email', $matches[0], 12 * HOUR_IN_SECONDS);
+            }
+        }
+
         // Fetch RAG context, filtering out reserved data
         $rag_context = "";
         if (get_option('wai_chatbot_use_rag', 1)) {
@@ -146,19 +248,23 @@ trait Chat {
                     $post_type_sql = "post_type IN ('" . $in_clause . "')";
                     
                     $rows = [];
+                    $matched_post_ids = [];
+                    $post_types = [];
+
                     if (get_option('wai_chatbot_full_rag_on_first', 0) && $is_first_message) {
-                        // Load everything up to a limit for the first message to build deep context
+                        // Load full context for the first message
                         $first_limit = absint(get_option('wai_chatbot_rag_first_limit', 30));
                         if ($first_limit < 1) $first_limit = 30;
                         
-                        $stmt = $db->query("SELECT text_content, post_type FROM document_embeddings WHERE {$post_type_sql} LIMIT {$first_limit}");
+                        $stmt = $db->query("SELECT DISTINCT post_id, post_type FROM document_embeddings WHERE {$post_type_sql} LIMIT {$first_limit}");
                         if ($stmt) {
                             while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-                                $rows[] = $row;
+                                $matched_post_ids[] = $row['post_id'];
+                                $post_types[$row['post_id']] = $row['post_type'];
                             }
                         }
                     } else {
-                        // Simple Keyword Search for RAG on subsequent requests or if full-first-message is off
+                        // Simple Keyword Search for RAG
                         $search_limit = absint(get_option('wai_chatbot_rag_search_limit', 5));
                         if ($search_limit < 1) $search_limit = 5;
                         $clean_prompt = preg_replace('/[^\p{L}\p{N}\s]/u', '', $prompt);
@@ -170,22 +276,48 @@ trait Chat {
                         
                         $where = count($conditions) > 0 ? " AND (" . implode(" OR ", $conditions) . ")" : "";
                         
-                        $stmt = $db->query("SELECT text_content, post_type FROM document_embeddings WHERE {$post_type_sql} $where LIMIT {$search_limit}");
+                        $stmt = $db->query("SELECT DISTINCT post_id, post_type FROM document_embeddings WHERE {$post_type_sql} $where LIMIT {$search_limit}");
                         
                         if ($stmt) {
                             while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-                                $rows[] = $row;
+                                $matched_post_ids[] = $row['post_id'];
+                                $post_types[$row['post_id']] = $row['post_type'];
                             }
                         }
                         
                         // If keyword search didn't find anything, fallback to general context
-                        if (empty($rows)) {
-                            $stmt = $db->query("SELECT text_content, post_type FROM document_embeddings WHERE {$post_type_sql} LIMIT 3");
+                        if (empty($matched_post_ids)) {
+                            $stmt = $db->query("SELECT DISTINCT post_id, post_type FROM document_embeddings WHERE {$post_type_sql} LIMIT 3");
                             if ($stmt) {
                                 while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-                                    $rows[] = $row;
+                                    $matched_post_ids[] = $row['post_id'];
+                                    $post_types[$row['post_id']] = $row['post_type'];
                                 }
                             }
+                        }
+                    }
+
+                    // CONTEXT REASSEMBLY: Reconstruct full pages from matched post IDs
+                    if (!empty($matched_post_ids)) {
+                        $in_ids = implode(',', array_map('intval', array_unique($matched_post_ids)));
+                        $full_doc_stmt = $db->query("SELECT post_id, text_content FROM document_embeddings WHERE post_id IN ({$in_ids}) ORDER BY post_id, chunk_index ASC");
+                        
+                        $assembled_docs = [];
+                        if ($full_doc_stmt) {
+                            while ($row = $full_doc_stmt->fetch(\PDO::FETCH_ASSOC)) {
+                                $pid = $row['post_id'];
+                                if (!isset($assembled_docs[$pid])) {
+                                    $assembled_docs[$pid] = "";
+                                }
+                                $assembled_docs[$pid] .= $row['text_content'] . "\n";
+                            }
+                        }
+                        
+                        foreach ($assembled_docs as $pid => $content) {
+                            $rows[] = [
+                                'post_type' => $post_types[$pid],
+                                'text_content' => trim($content)
+                            ];
                         }
                     }
 
@@ -238,23 +370,17 @@ trait Chat {
 
         $system_prompt = "You are a helpful assistant for this website. You are speaking to a frontend visitor. Answer their questions using the context provided below. If the provided context does not contain the answer, you MUST use the `search_site_content` tool to find the relevant information on the site before giving up.\n"
                        . "To optimize token usage, you MUST provide extremely concise and direct answers. Avoid unnecessary pleasantries or long explanations.\n"
-                       . "IMPORTANT: Your primary scope is to provide a brief SUMMARY of the requested information, and ALWAYS include a raw HTML button link (e.g. <a href=\"URL\" class=\"wai-chatbot-btn\" target=\"_blank\">Read Full Info</a>) to direct the user to the relevant page where they can find the full details, if a URL is available in the context.\n"
+                       . "IMPORTANT: Your primary scope is to provide a brief SUMMARY of the requested information, and if a URL is available in the context include a raw HTML button link (e.g. <a href=\"URL\" class=\"wai-chatbot-btn\" target=\"_blank\">Read Full Info</a>) to direct the user to the relevant page where they can find the full details.\n"
                        . "CRITICAL RULE: DO NOT provide a button link to a page if the URL exactly matches or corresponds to the \"Visitor's Current Page URL\" provided in the context below. The user is already on that page, so linking to it is redundant.\n"
                        . "IMPORTANT LANGUAGE RULE: If the user is speaking a language that differs from the current page language, or if they explicitly ask for a page in a specific language, ALWAYS use the `wpml_get_translated_url` tool to fetch the correct localized link before providing it.\n\n";
                        
         if (class_exists('WooCommerce') && get_option('wai_chatbot_woocommerce', 1)) {
-            $system_prompt .= "WOOCOMMERCE RULE: If the user asks for a product, you MUST try to find the best match using the `wc_search_products` tool. If the matched product is a 'variable' product, you MUST ask the user which variant they need by showing them the available variations BEFORE adding it to the cart. Use `wc_add_to_cart` to add the chosen product/variation to the cart.\n\n";
+            $system_prompt .= "WOOCOMMERCE RULE: If the user asks for a product, you MUST try to find the best match using the `wc_search_products` tool. When you find the product(s), you MUST provide a raw HTML button link to the product using the URL returned by the tool, AND ask the user if they want you to add it to their cart. If they say yes and the product is a 'variable' product, you MUST ask the user which variant they need by showing them the available variations BEFORE adding it to the cart. Use `wc_add_to_cart` to add the chosen product/variation to the cart.\n\n";
         }
         
         $system_prompt .= "CRITICAL TOOL RULE: You MUST ONLY call ONE tool per response! DO NOT execute multiple tools in parallel in a single response. If multiple actions are needed, execute the first one, wait for the response, and then execute the next. Violating this rule will cause a fatal API error.\n\n";
         
-        if ($is_editor_user) {
-            if ($is_elementor) {
-                $system_prompt .= "EDITOR RULE: You are currently active on an Elementor page. If the user asks to add or edit something on the page (like a widget for dogs), you MUST use the `elementor_add_widget` tool to fulfill their request. The widget will be inserted live into their editor, so DO NOT tell them to refresh the page.\n\n";
-            } else {
-                $system_prompt .= "EDITOR RULE: You are currently active on a Gutenberg page. If the user asks to add or edit something on the page (like a block), you MUST use the `gutenberg_add_block` tool to fulfill their request. The block will be inserted live into their editor, so DO NOT tell them to refresh the page.\n\n";
-            }
-        }
+
         
         $system_prompt .= $site_info . $rag_context;
 
@@ -361,26 +487,13 @@ trait Chat {
             ['type' => 'object', 'properties' => ['query' => ['type' => 'string', 'description' => 'The search query string.']], 'required' => ['query']]
         );
 
-        if ($is_editor_user) {
-            if ($is_elementor) {
-                $tools[] = new \WordPress\AiClient\Tools\DTO\FunctionDeclaration(
-                    'elementor_add_widget',
-                    'Add a new Elementor widget to the bottom of the page. You MUST use standard Elementor widget types (e.g., text-editor, heading, image, divider). Do NOT invent custom widget types.',
-                    ['type' => 'object', 'properties' => [
-                        'widgetType' => ['type' => 'string', 'description' => 'The standard Elementor widget type (e.g., text-editor).'],
-                        'widgetData' => ['type' => 'object', 'description' => 'A JSON object containing the widget settings (e.g. {"editor": "text here"} or {"title": "Heading here"}).']
-                    ], 'required' => ['widgetType', 'widgetData']]
-                );
-            } else {
-                $tools[] = new \WordPress\AiClient\Tools\DTO\FunctionDeclaration(
-                    'gutenberg_add_block',
-                    'Add a new Gutenberg block to the bottom of the page. You MUST only generate STANDARD CORE WordPress blocks (e.g., core/paragraph, core/heading, core/image, core/list). Do NOT invent new block names, or the editor will crash.',
-                    ['type' => 'object', 'properties' => [
-                        'blockHTML' => ['type' => 'string', 'description' => 'The raw HTML of the standard Gutenberg block including exact comment wrappers (e.g. <!-- wp:paragraph --><p>Text</p><!-- /wp:paragraph -->).']
-                    ], 'required' => ['blockHTML']]
-                );
-            }
-        }
+        $tools[] = new \WordPress\AiClient\Tools\DTO\FunctionDeclaration(
+            'request_human_contact',
+            'Call this tool ONLY if you have tried multiple times and cannot provide a valid reply to the user, and you want to offer them the possibility to be contacted by a human operator.',
+            ['type' => 'object', 'properties' => new \stdClass()]
+        );
+
+
 
         $tools[] = new \WordPress\AiClient\Tools\DTO\FunctionDeclaration(
             'wpab__ai__fill_form_field',
@@ -493,6 +606,7 @@ trait Chat {
                                                     'name' => $p->get_name(),
                                                     'type' => $p->get_type(),
                                                     'price' => $p->get_price(),
+                                                    'url' => get_permalink($p->get_id()),
                                                 ];
                                                 if ($p->is_type('variable')) {
                                                     $item['variations'] = [];
@@ -556,41 +670,19 @@ trait Chat {
                                         }
                                     }
                                 }
-                                
-                                if ($name === 'elementor_add_widget') {
-                                    if (!$is_editor_user || !$request_post_id) {
-                                        $tool_result = ['error' => 'You do not have permission to edit this page.'];
-                                    } else {
-                                        $widget_type = isset($args['widgetType']) ? sanitize_text_field($args['widgetType']) : '';
-                                        $widget_settings = isset($args['widgetData']) ? $args['widgetData'] : [];
-                                        
-                                        if (!$widget_type || empty($widget_settings)) {
-                                            $tool_result = ['error' => 'Missing widget type or data.'];
-                                        } else {
-                                            $frontend_actions[] = [
-                                                'type' => 'elementor_insert',
-                                                'widgetType' => $widget_type,
-                                                'widgetData' => $widget_settings
-                                            ];
-                                            $tool_result = ['success' => true, 'message' => 'Widget data generated. Inform the user that it has been inserted into the page.'];
-                                        }
-                                    }
-                                }
 
-                                if ($name === 'gutenberg_add_block') {
-                                    if (!$is_editor_user || !$request_post_id) {
-                                        $tool_result = ['error' => 'You do not have permission to edit this page.'];
+                                if ($name === 'request_human_contact') {
+                                    $chat_id = "wai_chatbot_" . $session_id;
+                                    $stored_email = get_transient($chat_id . '_email');
+                                    $has_email = is_user_logged_in() || !empty($stored_email);
+                                    
+                                    if ($has_email) {
+                                        $tool_result = ['success' => true, 'message' => 'We already have the user\'s email on file. Inform them that a human operator will contact them shortly.'];
                                     } else {
-                                        $block_html = isset($args['blockHTML']) ? $args['blockHTML'] : '';
-                                        if (!$block_html) {
-                                            $tool_result = ['error' => 'Missing block HTML.'];
-                                        } else {
-                                            $frontend_actions[] = [
-                                                'type' => 'gutenberg_insert',
-                                                'blockHTML' => $block_html
-                                            ];
-                                            $tool_result = ['success' => true, 'message' => 'Block data generated. Inform the user that it has been inserted into the page.'];
-                                        }
+                                        $frontend_actions[] = [
+                                            'type' => 'show_email_form'
+                                        ];
+                                        $tool_result = ['success' => true, 'message' => 'The email form has been shown to the user on their screen. Ask them to fill it out to be contacted by a human.'];
                                     }
                                 }
 
@@ -678,6 +770,8 @@ trait Chat {
                                     'user_id' => $user_id,
                                     'comment_content' => wp_slash($prompt),
                                     'comment_type' => 'wai_chat',
+                                    'comment_author_IP' => $comment_ip,
+                                    'comment_agent' => $comment_agent,
                                     'comment_approved' => 1
                                 ]);
                                 
@@ -704,7 +798,7 @@ trait Chat {
                                 }
                             }
                             
-                            break 2;
+                            break;
                         }
                     }
 
@@ -732,6 +826,61 @@ trait Chat {
         
         remove_filter('http_request_timeout', $timeout_filter, 999);
         return new \WP_Error('ai_error', $last_exception ? $last_exception->getMessage() : 'All models failed.', ['status' => 500]);
+    }
+
+    public function handle_chatbot_poll(\WP_REST_Request $request) {
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        $last_time = sanitize_text_field($request->get_param('last_time')); // format: Y-m-d H:i:s
+        
+        if (empty($session_id) || empty($last_time)) {
+            return new \WP_Error('invalid_params', 'Missing parameters', ['status' => 400]);
+        }
+        
+        global $wpdb;
+        $query = $wpdb->prepare("
+            SELECT c.* 
+            FROM {$wpdb->comments} c
+            INNER JOIN {$wpdb->commentmeta} m ON c.comment_ID = m.comment_id
+            WHERE c.comment_type = 'wai_chat' 
+            AND m.meta_key = 'wai_session_id' AND m.meta_value = %s
+            AND c.comment_date_gmt > %s
+            ORDER BY c.comment_date_gmt ASC
+        ", $session_id, $last_time);
+        
+        $comments = $wpdb->get_results($query);
+        $messages = [];
+        
+        foreach ($comments as $c) {
+            $role = 'ai';
+            if ($c->comment_author !== 'Wizard AI' && strpos($c->comment_author, 'Agent') === false) {
+                // Determine if it's the user or the admin
+                // Let's check if the user is an admin based on user_id, or we just say if it's not the stored name, it's admin.
+                // For simplicity, we just pass it as 'ai' so the frontend formats it as a response, 
+                // but we can distinguish admin takeover.
+                $chat_id = "wai_chatbot_" . $session_id;
+                $stored_email = get_transient($chat_id . '_email');
+                if ($c->comment_author_email !== $stored_email && user_can($c->user_id, 'manage_options')) {
+                    $role = 'ai'; // operator
+                } else {
+                    $role = 'user'; // We don't need to return user messages as the frontend already has them, but let's do it if another tab opened it.
+                }
+            }
+            
+            $messages[] = [
+                'text' => wp_kses_post($c->comment_content),
+                'role' => $role,
+                'author' => esc_html($c->comment_author),
+                'date_gmt' => $c->comment_date_gmt
+            ];
+        }
+        
+        $manual_mode = get_transient('wai_chatbot_manual_' . $session_id) ? true : false;
+        
+        return rest_ensure_response([
+            'success' => true,
+            'messages' => $messages,
+            'manual_mode' => $manual_mode
+        ]);
     }
 
 }

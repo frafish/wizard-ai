@@ -33,6 +33,8 @@ trait Ui {
                 </div>
                 <div class="wai-playground-prompt-wrapper">
                     <textarea id="wai-playground-prompt" placeholder="<?php esc_attr_e('Ask the AI to do something (e.g. create a file, run a query)...', 'wizard-ai'); ?>"></textarea>
+                    <div id="wai-playground-attachment-preview"></div>
+                    <button type="button" id="wai-attach-media" title="<?php esc_attr_e('Attach Media', 'wizard-ai'); ?>"><span class="dashicons dashicons-plus"></span></button>
                     <button type="button" id="wai-speech-to-text" title="<?php esc_attr_e('Speech to text', 'wizard-ai'); ?>"><span class="dashicons dashicons-microphone"></span></button>
                     <div class="wai-prompt-hint"><?php esc_html_e('Ctrl + Enter to send', 'wizard-ai'); ?></div>
                 </div>
@@ -59,7 +61,7 @@ trait Ui {
                     <label class="wai-auto-approve-label">
                             <input type="checkbox" id="wai-global-auto-approve"> <abbr title="<?php esc_html_e('Skip approvation and Auto-approve tasks for this session', 'wizard-ai'); ?>"><?php esc_html_e('Auto-approve', 'wizard-ai'); ?></abbr>
                         </label>
-                    <button type="button" id="wai-toggle-safe-mode" class="button button-secondary wai-session-btn <?php echo file_exists(ABSPATH . '.wb_ai_safe') ? 'wai-safe-mode-active' : ''; ?>" title="<?php esc_attr_e('Toggle AI Safe Mode (forces AI into isolated environment)', 'wizard-ai'); ?>" data-active="<?php echo file_exists(ABSPATH . '.wb_ai_safe') ? '1' : '0'; ?>">
+                    <button type="button" id="wai-toggle-safe-mode" class="button button-secondary wai-session-btn <?php echo file_exists(ABSPATH . '.wai_safe') ? 'wai-safe-mode-active' : ''; ?>" title="<?php esc_attr_e('Toggle AI Safe Mode (forces AI into isolated environment)', 'wizard-ai'); ?>" data-active="<?php echo file_exists(ABSPATH . '.wai_safe') ? '1' : '0'; ?>">
                             <span class="dashicons dashicons-shield"></span>
                         </button>
                     <button type="button" id="wai-playground-send" class="button button-primary button-large" title="<?php esc_attr_e('Send', 'wizard-ai'); ?>">
@@ -414,7 +416,8 @@ trait Ui {
             // The JS file was probably enqueued elsewhere previously or was missing. Let's make sure it's enqueued here.
             wp_enqueue_script('wbai-playground-script', WIZARD_AI_URL . 'modules/playground/assets/js/playground.js', array('jquery'), filemtime(WIZARD_AI_PATH . 'modules/playground/assets/js/playground.js'), true);
             
-
+            // Enqueue native WordPress media uploader
+            wp_enqueue_media();
         }
     }
 }

@@ -41,6 +41,12 @@ trait Settings {
             $track = isset($_POST['wai_chatbot_track_sessions']) ? 1 : 0;
             update_option('wai_chatbot_track_sessions', $track);
 
+            $notify = isset($_POST['wai_chatbot_notify_new_session']) ? 1 : 0;
+            update_option('wai_chatbot_notify_new_session', $notify);
+            
+            $notify_email = sanitize_text_field($_POST['wai_chatbot_notify_email']);
+            update_option('wai_chatbot_notify_email', $notify_email);
+
             $gdpr_text = wp_unslash($_POST['wai_chatbot_gdpr_text'] ?? '');
             update_option('wai_chatbot_gdpr_text', $gdpr_text);
             do_action('wpml_register_single_string', 'wizard-ai', 'chatbot_gdpr_text', $gdpr_text);
@@ -60,6 +66,9 @@ trait Settings {
         $selected_model = get_option('wai_chatbot_model', '');
         $auto_fallback = get_option('wai_chatbot_auto_fallback', 0);
         $saved_fallback_models = get_option('wai_chatbot_fallback_models', []);
+        
+        $notify_new_session = get_option('wai_chatbot_notify_new_session', 0);
+        $notify_email = get_option('wai_chatbot_notify_email', get_option('admin_email'));
 
         $upload_dir = wp_upload_dir();
         $rag_db_path = $upload_dir['basedir'] . '/wai/rag.sqlite';
@@ -240,6 +249,18 @@ trait Settings {
                                 <input type="checkbox" name="wai_chatbot_track_sessions" value="1" <?php checked(get_option('wai_chatbot_track_sessions', 0), 1); ?>>
                                 <?php esc_html_e('Log conversations in the database so you can analyze them in the Chatbot Logs page', 'wizard-ai'); ?>
                             </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('New Session Notification', 'wizard-ai'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="wai_chatbot_notify_new_session" value="1" <?php checked($notify_new_session, 1); ?>>
+                                <?php esc_html_e('Send an email notification when a new chat session starts', 'wizard-ai'); ?>
+                            </label>
+                            <br><br>
+                            <input type="email" name="wai_chatbot_notify_email" value="<?php echo esc_attr($notify_email); ?>" class="regular-text">
+                            <p class="description"><?php esc_html_e('Email address to receive the notification. Defaults to admin email.', 'wizard-ai'); ?></p>
                         </td>
                     </tr>
                     <tr>

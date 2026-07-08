@@ -170,6 +170,12 @@ class Block {
                     foreach ($response_message->getParts() as $part) {
                         if ($part->getFunctionCall() !== null) {
                             $has_any_call = true;
+                            // Log the tool execution
+                            $fc = $part->getFunctionCall();
+                            $ai_logger = \WizardAi\Modules\Ai\Ai::instance();
+                            if (method_exists($ai_logger, 'log_audit_event')) {
+                                $ai_logger->log_audit_event('editor_agent', $fc->getName(), $fc->getArgs(), 'success');
+                            }
                             break;
                         }
                     }
@@ -208,10 +214,48 @@ class Block {
                             $messages[count($messages) - 1] = $response_message;
                             
                             if ($resolver) {
+                                $ai_logger = \WizardAi\Modules\Ai\Ai::instance();
+                                if (method_exists($ai_logger, 'log_audit_event')) {
+                                    $ai_logger->log_audit_event('editor_agent_fallback', $fc->getName(), $fc->getArgs(), 'success');
+                                }
                                 $response = $resolver->execute_abilities($response_message);
                                 $messages[] = $response;
                                 continue;
                             }
+                        }
+                    }
+
+                    // Self-Correction Loop for Output Validation
+                    $ai = \WizardAi\Modules\Ai\Ai::instance();
+                    if (method_exists($ai, 'extract_and_validate_json')) {
+                        $validation_result = $ai->extract_and_validate_json($ai_text);
+                        if (is_wp_error($validation_result)) {
+                            // JSON is invalid, push error to AI and continue loop
+                            $error_msg = 'ERROR: Your response was not a valid JSON object. Error: ' . $validation_result->get_error_message() . '. Please fix the syntax and ONLY return the JSON.';
+                            $messages[] = clone $response_message;
+                            $messages[] = new \WordPress\AiClient\Messages\DTO\UserMessage([new \WordPress\AiClient\Messages\DTO\MessagePart($error_msg)]);
+                            
+                            if ($i < 9) { // If not last iteration
+                                continue;
+                            }
+                        } else {
+                            $decoded = $validation_result;
+                            
+                            // Check PHP syntax if present
+                            if (isset($decoded['render']) && method_exists($ai, 'validate_php_syntax')) {
+                                $php_check = $ai->validate_php_syntax($decoded['render']);
+                                if (is_wp_error($php_check)) {
+                                    $error_msg = 'ERROR: The PHP code in the "render" key has a syntax error: ' . $php_check->get_error_message() . '. Please fix the PHP syntax.';
+                                    $messages[] = clone $response_message;
+                                    $messages[] = new \WordPress\AiClient\Messages\DTO\UserMessage([new \WordPress\AiClient\Messages\DTO\MessagePart($error_msg)]);
+                                    if ($i < 9) continue;
+                                }
+                            }
+                            
+                            // Validated successfully
+                            $updated_json = empty($bundle) ? $decoded : array_merge($bundle, $decoded);
+                            remove_filter('http_request_timeout', $timeout_filter, 999);
+                            return new \WP_REST_Response(['success' => true, 'updated_json' => $updated_json], 200);
                         }
                     }
 
@@ -234,41 +278,10 @@ class Block {
             
             remove_filter('http_request_timeout', $timeout_filter, 999);
 
-
-
-        if (empty($ai_text)) {
-            return new \WP_REST_Response([
-                'success' => false,
-                'message' => __('AI returned an empty response. Please check if your API key has quota or if the prompt is valid.', 'wizard-ai')
-            ], 400);
-        }
-
-        $ai_text = trim($ai_text);
-        
-        // Extract JSON from markdown block if present
-        if (preg_match('/```json\s*([\s\S]*?)\s*```/i', $ai_text, $matches)) {
-            $ai_text = $matches[1];
-        } elseif (preg_match('/```\s*([\s\S]*?)\s*```/i', $ai_text, $matches)) {
-            $ai_text = $matches[1];
-        }
-        
-        // Final cleanup just in case
-        $ai_text = preg_replace('/^```json\s*|```$/i', '', trim($ai_text));
-        
-        // Strip out control characters except typical whitespace
-        $ai_text = preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/', '', $ai_text);
-        $decoded = json_decode($ai_text, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $snippet = mb_substr($ai_text, 0, 150) . (mb_strlen($ai_text) > 150 ? '...' : '');
-            return new \WP_REST_Response([
-                'success' => false,
-                'message' => sprintf(__('AI returned invalid JSON. Raw output: %s', 'wizard-ai'), $snippet)
-            ], 422);
-        }
-
-        $updated_json = empty($bundle) ? $decoded : array_merge($bundle, $decoded);
-
-        return new \WP_REST_Response(['success' => true, 'updated_json' => $updated_json], 200);
+        return new \WP_REST_Response([
+            'success' => false,
+            'message' => __('AI failed to return valid code after multiple attempts. Please check your prompt or model capacity.', 'wizard-ai')
+        ], 400);
     }
 
     public function add_ai_button_to_submitbox($post) {

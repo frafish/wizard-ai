@@ -8,8 +8,10 @@ trait Settings {
         if (isset($_POST['wbai_markdown_save'])) {
             check_admin_referer('wbai_markdown_nonce');
             $enabled = isset($_POST['wbai_markdown_enabled']) ? '1' : '0';
+            $llmstxt_enabled = isset($_POST['wbai_markdown_llmstxt_enabled']) ? '1' : '0';
             $cpts = isset($_POST['wbai_markdown_cpts']) && is_array($_POST['wbai_markdown_cpts']) ? array_map('sanitize_text_field', $_POST['wbai_markdown_cpts']) : [];
             update_option('wbai_markdown_enabled', $enabled);
+            update_option('wbai_markdown_llmstxt_enabled', $llmstxt_enabled);
             update_option('wbai_markdown_cpts', $cpts);
             
             // Flush rewrite rules to ensure .md routes are updated
@@ -19,6 +21,7 @@ trait Settings {
         }
 
         $enabled = get_option('wbai_markdown_enabled', '1');
+        $llmstxt_enabled = get_option('wbai_markdown_llmstxt_enabled', '1');
         $selected_cpts = get_option('wbai_markdown_cpts', false);
         if ($selected_cpts === false) {
             $selected_cpts = array_values(array_diff(array_keys(get_post_types(['public' => true])), ['attachment']));
@@ -39,6 +42,15 @@ trait Settings {
                             <label>
                                 <input type="checkbox" name="wbai_markdown_enabled" value="1" <?php checked('1', $enabled); ?>>
                                 <?php esc_html_e('Enable Markdown conversion and .md endpoints', 'wizard-ai'); ?>
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Enable llms.txt', 'wizard-ai'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="wbai_markdown_llmstxt_enabled" value="1" <?php checked('1', $llmstxt_enabled); ?>>
+                                <?php esc_html_e('Enable the /llms.txt endpoint for AI crawlers', 'wizard-ai'); ?>
                             </label>
                         </td>
                     </tr>

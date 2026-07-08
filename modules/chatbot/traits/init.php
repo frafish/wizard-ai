@@ -29,6 +29,34 @@ trait Init {
                 return current_user_can('manage_options');
             }
         ]);
+
+        register_rest_route('wizard-ai/v1', '/chatbot/poll', [
+            'methods' => 'POST',
+            'callback' => [$this, 'handle_chatbot_poll'],
+            'permission_callback' => function(\WP_REST_Request $request) {
+                $nonce = $request->get_header('X-WP-Nonce');
+                if (empty($nonce) || !wp_verify_nonce($nonce, 'wp_rest')) {
+                    return new \WP_Error('rest_forbidden', __('Bot activity detected. Invalid nonce.', 'wizard-ai'), ['status' => 403]);
+                }
+                return true;
+            }
+        ]);
+
+        register_rest_route('wizard-ai/v1', '/chatbot/toggle-manual', [
+            'methods' => 'POST',
+            'callback' => [$this, 'handle_chatbot_toggle_manual'],
+            'permission_callback' => function() {
+                return current_user_can('manage_options');
+            }
+        ]);
+
+        register_rest_route('wizard-ai/v1', '/chatbot/operator-send', [
+            'methods' => 'POST',
+            'callback' => [$this, 'handle_chatbot_operator_send'],
+            'permission_callback' => function() {
+                return current_user_can('manage_options');
+            }
+        ]);
     }
 
     public function add_chatbot_menu() {

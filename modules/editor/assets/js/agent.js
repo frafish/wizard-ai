@@ -412,6 +412,30 @@ jQuery(document).ready(function($) {
                             console.log("[Wizard AI] No Elementor code blocks matched. aiResponse was:", aiResponse);
                         }
                     } else if (typeof wp !== 'undefined' && wp.data && wp.data.select('core/block-editor')) {
+                        // Handle Meta updates first
+                        const metaRegex = /```meta-update\s*([\s\S]*?)```/gi;
+                        let metaMatch;
+                        while ((metaMatch = metaRegex.exec(aiResponse)) !== null) {
+                            try {
+                                const metaUpdates = JSON.parse(metaMatch[1]);
+                                if (typeof metaUpdates === 'object' && !Array.isArray(metaUpdates)) {
+                                    if (wp.data.select('core/editor')) {
+                                        wp.data.dispatch('core/editor').editPost({ meta: metaUpdates });
+                                        console.log("[Wizard AI] Dispatched meta updates:", metaUpdates);
+                                        
+                                        // Specific support for ACF / SCF frontend API
+                                        if (typeof acf !== 'undefined' && acf.getField) {
+                                            for (const key in metaUpdates) {
+                                                const field = acf.getField(key);
+                                                if (field) field.val(metaUpdates[key]);
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch(e) { console.error("[Wizard AI] Error parsing meta-update JSON", e); }
+                        }
+                        aiResponse = aiResponse.replace(/```meta-update\s*[\s\S]*?```/gi, "<br><em>[Successfully updated post meta / ACF fields]</em><br>");
+
                         let injectedBlocks = [];
                         let hasReplace = aiResponse.includes('```gutenberg-replace') || aiResponse.includes('language-gutenberg-replace');
                         
@@ -601,5 +625,32 @@ jQuery(document).ready(function($) {
                 }
             }, 1000); // Small delay to ensure Elementor DOM is fully hydrated
         });
+    }
+
+    // --- Gutenberg Live Push Polling ---
+    if (typeof wp !== 'undefined' && wp.data && wp.data.select('core/block-editor')) {
+        setInterval(async () => {
+            try {
+                const response = await fetch(wizardAiAgentData.rest_url.replace('/ai-chat', '/editor-pull'), {
+                    headers: { 'X-WP-Nonce': wizardAiAgentData.nonce }
+                });
+                const data = await response.json();
+                if (data.success && data.blocks) {
+                    const parsedBlocks = wp.blocks.parse(data.blocks);
+                    const validBlocks = parsedBlocks.filter(b => b.name !== 'core/freeform' || (b.originalContent && b.originalContent.trim() !== ''));
+                    if (validBlocks.length > 0) {
+                        const dispatch = wp.data.dispatch('core/block-editor');
+                        if (lastSelectedBlockClientIds && lastSelectedBlockClientIds.length > 0) {
+                            dispatch.replaceBlocks(lastSelectedBlockClientIds, validBlocks);
+                        } else {
+                            dispatch.insertBlocks(validBlocks);
+                        }
+                        console.log("[Wizard AI] External blocks pushed to editor canvas live!");
+                    }
+                }
+            } catch (e) {
+                // Silent catch for poll
+            }
+        }, 3000);
     }
 });

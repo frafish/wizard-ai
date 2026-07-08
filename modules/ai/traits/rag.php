@@ -151,9 +151,9 @@ trait Rag {
                             <th scope="row"><?php esc_html_e('Sync Frequency', 'wizard-ai'); ?></th>
                             <td>
                                 <select name="wai_rag_cron_frequency">
-                                    <option value="hourly" <?php selected($frequency, 'hourly'); ?>><?php esc_html_e('Once Hourly', 'wizard-ai'); ?></option>
-                                    <option value="twicedaily" <?php selected($frequency, 'twicedaily'); ?>><?php esc_html_e('Twice Daily', 'wizard-ai'); ?></option>
-                                    <option value="daily" <?php selected($frequency, 'daily'); ?>><?php esc_html_e('Once Daily', 'wizard-ai'); ?></option>
+                                    <option value="hourly" <?php selected($frequency, 'hourly'); ?>><?php esc_html_e('Once Hourly (0 * * * *)', 'wizard-ai'); ?></option>
+                                    <option value="twicedaily" <?php selected($frequency, 'twicedaily'); ?>><?php esc_html_e('Twice Daily (0 0,12 * * *)', 'wizard-ai'); ?></option>
+                                    <option value="daily" <?php selected($frequency, 'daily'); ?>><?php esc_html_e('Once Daily (0 0 * * *)', 'wizard-ai'); ?></option>
                                 </select>
                                 <p class="description"><?php esc_html_e('How often should the site sync content to the AI database?', 'wizard-ai'); ?></p>
                             </td>

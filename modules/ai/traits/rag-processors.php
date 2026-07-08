@@ -89,10 +89,9 @@ trait WizardAI_RAG_Processors {
             $post_id = $post->ID;
             $wp_post = get_post($post_id);
             
-            $content = strip_shortcodes($wp_post->post_content);
-            $content = wp_strip_all_tags($content);
+            $content = $this->extract_post_content($post_id);
             
-            if (empty(trim($content))) continue;
+            if (empty($content)) continue;
             
             $content_hash = md5($content . $wp_post->post_title);
             

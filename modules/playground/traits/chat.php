@@ -181,7 +181,7 @@ trait Chat {
 
             $is_playground = in_array($object_type, ['toplevel_page_wizard-ai-playground', 'wizard-blocks_page_wizard-ai-playground']);
             if (!$is_playground && !empty($object_type)) {
-                $system_instruction .= "\n\nCRITICAL CONFINEMENT RULE: You are currently active as an embedded Agent inside a specific Page/Post editor. You MUST NOT use PHP tools or database queries to directly update the `post_content` of the current post. Instead, you MUST output Gutenberg blocks in your final response using ```gutenberg-insert, ```gutenberg-edit, or ```gutenberg-replace markdown blocks, which the editor UI will automatically apply for the user. You may use tools to fetch data, modify metadata, or edit the title/status, but DO NOT save the main body blocks directly to the database. If THEME STYLES are provided in the context, you MUST use their CSS utility classes (e.g., `has-[slug]-color`, `has-[slug]-font-size`) instead of inventing inline styles or hex codes.";
+                $system_instruction .= "\n\nCRITICAL CONFINEMENT RULE: You are currently active as an embedded Agent inside a specific Page/Post editor. You MUST NOT use PHP tools or database queries to directly update the `post_content` of the current post. Instead, you MUST output Gutenberg blocks in your final response using ```gutenberg-insert, ```gutenberg-edit, or ```gutenberg-replace markdown blocks. To update meta fields or ACF/SCF custom fields, you MUST output a JSON block using ```meta-update containing key-value pairs. The editor UI will automatically apply these blocks and meta updates for the user. You may use tools to fetch data or edit the title/status, but DO NOT save the main body blocks or meta directly to the database via tools. If THEME STYLES are provided in the context, you MUST use their CSS utility classes (e.g., `has-[slug]-color`, `has-[slug]-font-size`) instead of inventing inline styles or hex codes.";
             }
 
             $functions = [];
@@ -485,6 +485,17 @@ trait Chat {
 
                     global $wai_is_executing;
                     $wai_is_executing = true;
+                    
+                    foreach ($last_message->getParts() as $part) {
+                        if ($part->getFunctionCall() !== null) {
+                            $fc = $part->getFunctionCall();
+                            $ai_logger = \WizardAi\Modules\Ai\Ai::instance();
+                            if (method_exists($ai_logger, 'log_audit_event')) {
+                                $ctx = $is_cron ? 'cron_agent' : 'playground_agent';
+                                $ai_logger->log_audit_event($ctx, $fc->getName(), $fc->getArgs(), 'success');
+                            }
+                        }
+                    }
 
                     ob_start();
                     $response = $resolver->execute_abilities($last_message);

@@ -17,10 +17,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once dirname(__FILE__) . '/traits/rag-processors.php';
 require_once dirname(__FILE__) . '/traits/rag-embeddings.php';
+require_once dirname(__FILE__) . '/traits/content-extractor.php';
 
 class WizardAI_RAG_Embeddings_Cron {
     use WizardAI_RAG_Processors;
     use WizardAI_RAG_Embeddings;
+    use \WizardAi\Modules\Ai\Traits\ContentExtractor;
 
     private $db;
     private $db_dir;

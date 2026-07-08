@@ -8,6 +8,9 @@ class Ai {
     use Traits\Skills;
     use Traits\AbilitiesUi;
     use Traits\ModelsUi;
+    use Traits\CacheBypass;
+    use Traits\AiOutputValidator;
+    use Traits\AuditLogger;
 
     public $cm_settings = null;
     public $cm_sql_settings = null;
@@ -26,6 +29,7 @@ class Ai {
         if (self::$instance !== null) return;
         self::$instance = $this;
         
+        $this->register_cache_bypass_hooks();
         $this->register_rag_hooks();
         
         add_action('rest_api_init', [$this, 'register_ai_routes']);
@@ -54,6 +58,7 @@ class Ai {
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
     }
 
+
     public function enqueue_admin_assets($hook) {
         if ($hook === 'wizard-ai_page_wizard-ai-models') {
             wp_enqueue_style('wbai-models-ui-css', WIZARD_AI_URL . 'modules/ai/assets/css/models-ui.css', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/css/models-ui.css'));
@@ -73,7 +78,7 @@ class Ai {
                 'confirmDelete' => __('Are you sure you want to delete this skill?', 'wizard-ai')
             ]);
         }
-        
+
         if ($hook === 'wizard-ai_page_wizard-ai-abilities') {
             wp_enqueue_style('wbai-abilities-ui-css', WIZARD_AI_URL . 'modules/ai/assets/css/abilities-ui.css', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/css/abilities-ui.css'));
             wp_enqueue_script('wbai-abilities-ui-js', WIZARD_AI_URL . 'modules/ai/assets/js/abilities-ui.js', ['jquery'], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/js/abilities-ui.js'), true);
@@ -156,6 +161,9 @@ class Ai {
         if (file_exists(WIZARD_AI_PATH . 'modules/providers/cohere/src/autoload.php')) {
             require_once WIZARD_AI_PATH . 'modules/providers/cohere/src/autoload.php';
         }
+        if (file_exists(WIZARD_AI_PATH . 'modules/providers/ollama/src/autoload.php')) {
+            require_once WIZARD_AI_PATH . 'modules/providers/ollama/src/autoload.php';
+        }
 
         $registry = \WordPress\AiClient\AiClient::defaultRegistry();
 
@@ -177,6 +185,8 @@ class Ai {
         if (class_exists('\WordPress\CohereAiProvider\Provider\CohereProvider') && !$registry->hasProvider('\WordPress\CohereAiProvider\Provider\CohereProvider')) {
             $registry->registerProvider('\WordPress\CohereAiProvider\Provider\CohereProvider');
         }
+        // Ollama Provider integration has been delegated to the official ai-provider-for-ollama plugin
+        // to avoid conflicts and simplify configuration for the user.
     }
 
 
@@ -375,7 +385,7 @@ class Ai {
     }
 
     public function toggle_safe_mode(\WP_REST_Request $request) {
-        $flag_file = ABSPATH . '.wb_ai_safe';
+        $flag_file = ABSPATH . '.wai_safe';
         $force = $request->get_param('force');
         
         if ($force === 'enable') {
@@ -404,6 +414,11 @@ class Ai {
         $budget_cap = $request->get_param('budget_cap');
         if (isset($budget_cap)) {
             update_option('wbai_token_budget_cap', intval($budget_cap));
+        }
+
+        $ollama_url = $request->get_param('ollama_base_url');
+        if (isset($ollama_url)) {
+            update_option('wb_ai_ollama_base_url', sanitize_text_field($ollama_url));
         }
 
         $cron_enabled = $request->get_param('cron_enabled');

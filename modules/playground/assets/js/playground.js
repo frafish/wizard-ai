@@ -103,6 +103,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }
+
+        const toolHeader = e.target.closest('.wai-tool-header-toggle');
+        if (toolHeader) {
+            const details = toolHeader.nextElementSibling;
+            if (details && details.classList.contains('wai-tool-details')) {
+                details.style.display = (details.style.display === 'none' || details.style.display === '') ? 'block' : 'none';
+            }
+        }
     });
 
 
@@ -256,7 +264,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         aiEnforceSafeMode = true;
                         toggleSafeModeBtn.classList.add('wai-safe-mode-active');
                         toggleSafeModeBtn.dataset.active = "1";
-                        document.getElementById('wai-safemode-status').innerText = 'Strict Safe Mode Enforced (.wb_ai_safe)';
+                        document.getElementById('wai-safemode-status').innerText = 'Strict Safe Mode Enforced (.wai_safe)';
                     } else {
                         aiEnforceSafeMode = false;
                         toggleSafeModeBtn.classList.remove('wai-safe-mode-active');
@@ -392,6 +400,94 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    let waiAttachments = [];
+    const attachMediaBtn = document.getElementById('wai-attach-media');
+    const attachmentPreview = document.getElementById('wai-playground-attachment-preview');
+    
+    if (attachMediaBtn && typeof wp !== 'undefined' && wp.media) {
+        let mediaUploader;
+        attachMediaBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (mediaUploader) {
+                mediaUploader.open();
+                return;
+            }
+            mediaUploader = wp.media({
+                title: 'Select Media',
+                button: { text: 'Attach' },
+                multiple: true
+            });
+            mediaUploader.on('select', function() {
+                const selection = mediaUploader.state().get('selection');
+                selection.map(function(attachment) {
+                    attachment = attachment.toJSON();
+                    if (!waiAttachments.find(a => a.id === attachment.id)) {
+                        waiAttachments.push(attachment);
+                    }
+                });
+                renderAttachmentPreview();
+            });
+            mediaUploader.open();
+        });
+        
+        function renderAttachmentPreview() {
+            if (waiAttachments.length === 0) {
+                attachmentPreview.style.display = 'none';
+                return;
+            }
+            attachmentPreview.innerHTML = '';
+            attachmentPreview.style.display = 'flex';
+            
+            waiAttachments.forEach(function(attachment, index) {
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'relative';
+                wrapper.style.display = 'inline-block';
+                wrapper.style.margin = '2px';
+                wrapper.title = attachment.filename || 'Attachment';
+
+                const img = document.createElement('img');
+                img.style.maxHeight = '50px';
+                img.style.maxWidth = '50px';
+                img.style.display = 'block';
+                img.style.borderRadius = '3px';
+                img.style.border = '1px solid #ddd';
+                
+                if (attachment.type === 'image') {
+                    img.src = attachment.sizes && attachment.sizes.thumbnail ? attachment.sizes.thumbnail.url : attachment.url;
+                } else {
+                    img.src = attachment.icon;
+                }
+                
+                const removeBtn = document.createElement('span');
+                removeBtn.innerHTML = '&times;';
+                removeBtn.style.position = 'absolute';
+                removeBtn.style.top = '-5px';
+                removeBtn.style.right = '-5px';
+                removeBtn.style.background = '#d63638';
+                removeBtn.style.color = '#fff';
+                removeBtn.style.borderRadius = '50%';
+                removeBtn.style.width = '16px';
+                removeBtn.style.height = '16px';
+                removeBtn.style.lineHeight = '14px';
+                removeBtn.style.textAlign = 'center';
+                removeBtn.style.fontSize = '12px';
+                removeBtn.style.cursor = 'pointer';
+                removeBtn.style.boxShadow = '0 1px 2px rgba(0,0,0,0.3)';
+                removeBtn.dataset.index = index;
+                
+                removeBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    waiAttachments.splice(this.dataset.index, 1);
+                    renderAttachmentPreview();
+                });
+                
+                wrapper.appendChild(img);
+                wrapper.appendChild(removeBtn);
+                attachmentPreview.appendChild(wrapper);
+            });
+        }
+    }
+
     if (sendBtn) {
         const promptElMain = document.getElementById('wai-playground-prompt');
         if (promptElMain) {
@@ -408,17 +504,40 @@ document.addEventListener('DOMContentLoaded', function () {
         sendBtn.addEventListener('click', async function () {
             const promptEl = document.getElementById('wai-playground-prompt');
             const chatEl = document.getElementById('wai-playground-chat');
-            const prompt = promptEl.value.trim();
-            if (!prompt) return;
+            let prompt = promptEl.value.trim();
+            if (!prompt && waiAttachments.length === 0) return;
+
+            if (waiAttachments.length > 0) {
+                waiAttachments.forEach(att => {
+                    prompt += "\n\n[Attached Media ID: " + att.id + " | URL: " + att.url + "]";
+                });
+            }
 
             window.waiSessionPrompts.push(prompt);
 
             const wrapper = document.getElementById('wai-playground-chat-wrapper');
             if (wrapper) wrapper.classList.add('has-content');
 
-            chatEl.insertAdjacentHTML('beforeend', '<div class="wai-msg-user"><strong>You:</strong><br>' + prompt.replace(/\n/g, '<br>') + '</div>');
+            let displayPrompt = prompt;
+            if (waiAttachments.length > 0) {
+                waiAttachments.forEach(att => {
+                    displayPrompt = displayPrompt.replace("[Attached Media ID: " + att.id + " | URL: " + att.url + "]", "<br><em>Attached File: <a href='" + att.url + "' target='_blank'>" + escapeHtml(att.filename || 'View') + " (ID: " + att.id + ")</a></em>");
+                });
+            }
+
+            chatEl.insertAdjacentHTML('beforeend', '<div class="wai-msg-user"><strong>You:</strong><br>' + displayPrompt.replace(/\n/g, '<br>') + '</div>');
             promptEl.value = '';
             promptEl.style.boxShadow = 'none';
+
+            if (waiAttachments.length > 0) {
+                waiAttachments = [];
+                if (attachmentPreview) {
+                    attachmentPreview.innerHTML = '';
+                    attachmentPreview.style.display = 'none';
+                }
+            }
+
+            sendBtn.disabled = true;
 
             sendBtn.disabled = true;
 
@@ -472,7 +591,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         body: JSON.stringify({ force: 'enable' })
                                     });
                                 } catch (e) { }
-                                chatEl.insertAdjacentHTML('beforeend', '<div class="wai-msg-error"><strong>System:</strong> A third-party plugin caused a Fatal Error (500) while the AI was processing. Safe Mode (.wb_ai_safe) has been enforced for the AI to auto-recover.</div>');
+                                chatEl.insertAdjacentHTML('beforeend', '<div class="wai-msg-error"><strong>System:</strong> A third-party plugin caused a Fatal Error (500) while the AI was processing. Safe Mode (.wai_safe) has been enforced for the AI to auto-recover.</div>');
                                 document.getElementById(loadingId).remove();
 
                                 // Instead of just retrying, we start a task to debug it
@@ -812,9 +931,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 details.innerHTML = displayArgs;
 
                                 header.classList.add('wai-tool-header-toggle');
-                                header.onclick = () => {
-                                    details.style.display = details.style.display === 'none' ? 'block' : 'none';
-                                };
 
                                 toolNode.appendChild(header);
                                 toolNode.appendChild(details);
