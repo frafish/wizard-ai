@@ -51,6 +51,9 @@ trait Settings {
             update_option('wai_chatbot_gdpr_text', $gdpr_text);
             do_action('wpml_register_single_string', 'wizard-ai', 'chatbot_gdpr_text', $gdpr_text);
             
+            $gdpr_required = isset($_POST['wai_chatbot_gdpr_required']) ? 1 : 0;
+            update_option('wai_chatbot_gdpr_required', $gdpr_required);
+            
             echo '<div class="updated"><p>' . __('Settings saved.', 'wizard-ai') . '</p></div>';
         }
 
@@ -261,6 +264,15 @@ trait Settings {
                             <br><br>
                             <input type="email" name="wai_chatbot_notify_email" value="<?php echo esc_attr($notify_email); ?>" class="regular-text">
                             <p class="description"><?php esc_html_e('Email address to receive the notification. Defaults to admin email.', 'wizard-ai'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e('Require GDPR Consent', 'wizard-ai'); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="wai_chatbot_gdpr_required" value="1" <?php checked(get_option('wai_chatbot_gdpr_required', 1), 1); ?>>
+                                <?php esc_html_e('Require users to check a privacy consent box before sending a message', 'wizard-ai'); ?>
+                            </label>
                         </td>
                     </tr>
                     <tr>

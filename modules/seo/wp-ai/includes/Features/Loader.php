@@ -104,9 +104,7 @@ final class Loader {
 	 * @return array<\WordPress\AI\Contracts\Feature> Array of default feature instances.
 	 */
 	private function get_default_features(): array {
-		$feature_classes = array(
-			\WordPress\AI\Features\Image_Generation\Image_Generation::get_id() => \WordPress\AI\Features\Image_Generation\Image_Generation::class,
-		);
+		$feature_classes = array();
 
 		/**
 		 * Filters the list of default feature classes.

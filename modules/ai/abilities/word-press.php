@@ -349,5 +349,65 @@ trait WordPress {
             ]
         ]);
 
+        wp_register_ability('wizard-ai/gutenberg-read', [
+            'label' => __('Read Gutenberg Blocks', 'wizard-ai'),
+            'description' => __('Reads a post and parses its Gutenberg HTML content into a structured JSON array of blocks.', 'wizard-ai'),
+            'category' => 'wizard-ai',
+            'execute_callback' => function($input) {
+                $post_id = intval($input['post_id']);
+                $post = get_post($post_id);
+                if (!$post) return new \WP_Error('invalid_post', 'Post not found.');
+                
+                $blocks = parse_blocks($post->post_content);
+                // Clean up completely empty blocks
+                $clean_blocks = array_values(array_filter($blocks, function($b) {
+                    return !empty($b['blockName']) || trim($b['innerHTML']) !== '';
+                }));
+                
+                return ['success' => true, 'blocks' => $clean_blocks];
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'post_id' => ['type' => 'integer', 'description' => 'The ID of the post or page to read.']
+                ],
+                'required' => ['post_id']
+            ]
+        ]);
+
+        wp_register_ability('wizard-ai/gutenberg-update', [
+            'label' => __('Update Gutenberg Blocks', 'wizard-ai'),
+            'description' => __('Updates a post\'s content by providing a structured JSON array of Gutenberg blocks (previously read via gutenberg-read). The blocks will be serialized back to HTML.', 'wizard-ai'),
+            'category' => 'wizard-ai',
+            'execute_callback' => function($input) {
+                $post_id = intval($input['post_id']);
+                $blocks = $input['blocks'] ?? [];
+                if (!is_array($blocks)) return new \WP_Error('invalid_blocks', 'Blocks must be an array.');
+                
+                $content = serialize_blocks($blocks);
+                $updated = wp_update_post([
+                    'ID' => $post_id,
+                    'post_content' => wp_slash($content)
+                ], true);
+                
+                if (is_wp_error($updated)) return $updated;
+                return ['success' => true, 'post_id' => $post_id];
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'post_id' => ['type' => 'integer', 'description' => 'The ID of the post or page to update.'],
+                    'blocks' => [
+                        'type' => 'array', 
+                        'description' => 'An array of Gutenberg block objects to serialize and save as post content. Each object must have a blockName and innerHTML.',
+                        'items' => ['type' => 'object']
+                    ]
+                ],
+                'required' => ['post_id', 'blocks']
+            ]
+        ]);
+
     }
 }

@@ -297,6 +297,7 @@
 }
 
 #wai-chatbot-email-hint {
+    display: none;
     font-size: 12px;
     padding: 10px;
     color: #666;

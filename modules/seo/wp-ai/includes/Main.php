@@ -11,18 +11,9 @@ declare( strict_types=1 );
 
 namespace WordPress\AI;
 
-use WordPress\AI\Abilities\Settings\Settings as Settings_Ability;
-use WordPress\AI\Abilities\Show_In_Abilities;
-use WordPress\AI\Abilities\Utilities\Posts;
-use WordPress\AI\Admin\Activation;
-use WordPress\AI\Admin\Dashboard\Dashboard_Widgets;
-use WordPress\AI\Admin\Deactivation;
-use WordPress\AI\Admin\Upgrades;
 use WordPress\AI\Experiments\Experiments;
 use WordPress\AI\Features\Loader;
 use WordPress\AI\Features\Registry;
-use WordPress\AI\Settings\Settings_Page;
-use WordPress\AI\Settings\Settings_Registration;
 
 // Exit if accessed directly.
 defined( 'ABSPATH' ) || exit;
@@ -69,9 +60,7 @@ final class Main {
 			add_action( 'plugins_loaded', array( $this, 'load' ) );
 		}
 
-		// Register activation and deactivation hooks.
-		register_activation_hook( WPAI_PLUGIN_FILE, array( Activation::class, 'activation_callback' ) );
-		register_deactivation_hook( WPAI_PLUGIN_FILE, array( Deactivation::class, 'deactivation_callback' ) );
+		// Removed activation and deactivation hooks.
 	}
 
 	/**
@@ -89,15 +78,6 @@ final class Main {
 
 		// Include globals
 		require_once WPAI_PLUGIN_DIR . 'includes/helpers.php';
-
-		// Handle any pending upgrades.
-		( new Upgrades() )->init();
-
-		// Handle deprecated code.
-		( new Deprecated() )->init();
-
-		// Add plugin action links to plugins screen.
-		add_filter( 'plugin_action_links_' . plugin_basename( WPAI_PLUGIN_FILE ), array( $this, 'plugin_action_links' ) );
 
 		// Defer feature initialization to the 'init' action.
 		add_action( 'init', array( $this, 'initialize_features' ), 15 );
@@ -125,23 +105,7 @@ final class Main {
 			// Initializes all the features.
 			( new Loader( $registry ) )->init();
 
-			// Initialize settings registration.
-			( new Settings_Registration( $registry ) )->init();
-
-			// Register admin settings page menu item and dashboard widgets.
-			if ( is_admin() ) {
-				Settings_Page::init( $registry );
-
-				( new Dashboard_Widgets( $registry ) )->init();
-			}
-
-			// Register our post-related WordPress Abilities.
-			( new Posts() )->register();
-
-			// Expose curated core objects to the Abilities API, then register the
-			// `core/read-settings` ability (overriding any core-provided copy).
-			( new Show_In_Abilities() )->register();
-			( new Settings_Ability() )->init();
+			// Removed unnecessary abilities and settings registration
 		} catch ( \Throwable $e ) {
 			_doing_it_wrong(
 				__METHOD__,
@@ -155,34 +119,7 @@ final class Main {
 		}
 	}
 
-	/**
-	 * Adds action links to the plugin list table.
-	 *
-	 * This adds "Settings" and "Connectors" links to
-	 * the plugin's action links on the Plugins page.
-	 *
-	 * @since 0.8.0
-	 *
-	 * @param array<string> $links Existing action links.
-	 * @return array<string> Modified action links.
-	 */
-	public function plugin_action_links( array $links ): array {
-		$settings_link = sprintf(
-			'<a href="%1$s">%2$s</a>',
-			admin_url( 'options-general.php?page=ai-wp-admin' ),
-			esc_html__( 'Settings', 'ai' )
-		);
 
-		$connectors_link = sprintf(
-			'<a href="%1$s">%2$s</a>',
-			admin_url( 'options-connectors.php' ),
-			esc_html__( 'Connectors', 'ai' )
-		);
-
-		array_unshift( $links, $connectors_link, $settings_link );
-
-		return $links;
-	}
 
 	/**
 	 * Registers provider availability data for frontend scripts.

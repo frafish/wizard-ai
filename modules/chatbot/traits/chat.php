@@ -37,10 +37,27 @@ trait Chat {
             }
         }
         
+        // Intercept form data sent by the email hint
+        if (preg_match('/^My name is (.*?) and my email is (.*?)$/', $prompt, $matches)) {
+            $stored_name = trim($matches[1]);
+            $stored_email = trim($matches[2]);
+            set_transient($chat_id . '_name', $stored_name, 12 * HOUR_IN_SECONDS);
+            set_transient($chat_id . '_email', $stored_email, 12 * HOUR_IN_SECONDS);
+        } else if (preg_match('/^My email is (.*?)$/', $prompt, $matches)) {
+            $stored_email = trim($matches[1]);
+            set_transient($chat_id . '_email', $stored_email, 12 * HOUR_IN_SECONDS);
+        } else if (preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $prompt, $matches)) {
+            $stored_email = trim($matches[0]);
+            set_transient($chat_id . '_email', $stored_email, 12 * HOUR_IN_SECONDS);
+        }
+        
         $author_name = $user_id ? $current_user->display_name : $stored_name;
         $author_email = $user_id ? $current_user->user_email : $stored_email;
 
         $comment_ip = preg_replace('/[^0-9a-fA-F:., ]/', '', $_SERVER['REMOTE_ADDR'] ?? '');
+        if ($comment_ip === '::1') {
+            $comment_ip = '127.0.0.1';
+        }
         $comment_agent = isset($_SERVER['HTTP_USER_AGENT']) ? mb_substr($_SERVER['HTTP_USER_AGENT'], 0, 254) : '';
         
         $comment_data = [
@@ -95,7 +112,8 @@ trait Chat {
                 'reply' => '',
                 'session_id' => $session_id,
                 'frontend_actions' => [],
-                'manual_mode' => true
+                'manual_mode' => true,
+                'date_gmt' => current_time('mysql', 1)
             ]);
         }
 
@@ -474,16 +492,18 @@ trait Chat {
                 'Get the current logged-in user\'s past orders and their status. Use this to check order status or check if a refund is possible.',
                 ['type' => 'object', 'properties' => new \stdClass()]
             );
+            $default_lang = class_exists('SitePress') ? apply_filters('wpml_default_language', NULL) : get_bloginfo('language');
             $tools[] = new \WordPress\AiClient\Tools\DTO\FunctionDeclaration(
                 'wc_search_products',
-                'Search for WooCommerce products by name or keyword. Returns product ID, name, price, type, and available variations if it is a variable product.',
+                'Search for WooCommerce products by name or keyword. Returns product ID, name, price, type, and available variations. CRITICAL INSTRUCTION: You MUST search using the user\'s exact original words first. If and ONLY if the tool returns an error that no products were found, you MUST then translate the search query to the website\'s primary language (' . $default_lang . ') and CALL THIS TOOL AGAIN immediately with the translated word.',
                 ['type' => 'object', 'properties' => ['query' => ['type' => 'string', 'description' => 'The search query for the product.']], 'required' => ['query']]
             );
         }
 
+        $default_lang = class_exists('SitePress') ? apply_filters('wpml_default_language', NULL) : get_bloginfo('language');
         $tools[] = new \WordPress\AiClient\Tools\DTO\FunctionDeclaration(
             'search_site_content',
-            'Search the website for pages, posts, or products matching a query.',
+            'Search the website for pages, posts, or products matching a query. CRITICAL INSTRUCTION: You MUST search using the user\'s exact original words first. If and ONLY if the tool returns an error that no results were found, you MUST then translate the search query to the website\'s primary language (' . $default_lang . ') and CALL THIS TOOL AGAIN immediately with the translated word.',
             ['type' => 'object', 'properties' => ['query' => ['type' => 'string', 'description' => 'The search query string.']], 'required' => ['query']]
         );
 
@@ -559,7 +579,8 @@ trait Chat {
                                             } else {
                                                 WC()->cart->add_to_cart($pid);
                                             }
-                                            $tool_result = ['success' => true, 'message' => 'Product added to cart successfully.'];
+                                            $checkout_url = wc_get_checkout_url();
+                                            $tool_result = ['success' => true, 'message' => 'Product added to cart successfully. IMPORTANT: You MUST inform the user and append this exact HTML button to your reply so they can checkout: <a href="' . esc_url($checkout_url) . '" class="wai-chatbot-btn" target="_parent">Proceed to Checkout</a>'];
                                         } else {
                                             $tool_result = ['error' => 'Invalid product ID or product not found.'];
                                         }
@@ -594,38 +615,79 @@ trait Chat {
                                     } elseif ($name === 'wc_search_products') {
                                         $q = isset($args['query']) ? sanitize_text_field($args['query']) : '';
                                         if (!empty($q)) {
-                                            $products = wc_get_products([
-                                                's' => $q,
-                                                'status' => 'publish',
-                                                'limit' => 5,
-                                            ]);
+                                            $search_queries = [$q];
                                             $p_data = [];
-                                            foreach ($products as $p) {
-                                                $item = [
-                                                    'id' => $p->get_id(),
-                                                    'name' => $p->get_name(),
-                                                    'type' => $p->get_type(),
-                                                    'price' => $p->get_price(),
-                                                    'url' => get_permalink($p->get_id()),
-                                                ];
-                                                if ($p->is_type('variable')) {
-                                                    $item['variations'] = [];
-                                                    $available_variations = $p->get_available_variations();
-                                                    foreach ($available_variations as $var) {
-                                                        $attr_string = [];
-                                                        foreach ($var['attributes'] as $attr_k => $attr_v) {
-                                                            $attr_string[] = str_replace('attribute_', '', $attr_k) . ': ' . $attr_v;
+                                            $default_lang = class_exists('SitePress') ? apply_filters('wpml_default_language', NULL) : get_bloginfo('language');
+                                            
+                                            for ($idx = 0; $idx < count($search_queries); $idx++) {
+                                                $current_q = $search_queries[$idx];
+                                                $products = wc_get_products([
+                                                    's' => $current_q,
+                                                    'status' => 'publish',
+                                                    'limit' => 5,
+                                                ]);
+                                                
+                                                foreach ($products as $p) {
+                                                    $item = [
+                                                        'id' => $p->get_id(),
+                                                        'name' => $p->get_name(),
+                                                        'type' => $p->get_type(),
+                                                        'price' => $p->get_price(),
+                                                        'url' => get_permalink($p->get_id()),
+                                                    ];
+                                                    if ($p->is_type('variable')) {
+                                                        $item['variations'] = [];
+                                                        $available_variations = $p->get_available_variations();
+                                                        foreach ($available_variations as $var) {
+                                                            $attr_string = [];
+                                                            foreach ($var['attributes'] as $attr_k => $attr_v) {
+                                                                $attr_string[] = str_replace('attribute_', '', $attr_k) . ': ' . $attr_v;
+                                                            }
+                                                            $item['variations'][] = [
+                                                                'variation_id' => $var['variation_id'],
+                                                                'attributes' => implode(', ', $attr_string),
+                                                                'price' => $var['display_price']
+                                                            ];
                                                         }
-                                                        $item['variations'][] = [
-                                                            'variation_id' => $var['variation_id'],
-                                                            'attributes' => implode(', ', $attr_string),
-                                                            'price' => $var['display_price']
-                                                        ];
                                                     }
+                                                    $p_data[] = $item;
                                                 }
-                                                $p_data[] = $item;
+                                                
+                                                if (!empty($p_data)) {
+                                                    break; // Results found!
+                                                }
+                                                
+                                                // If empty and it's the first try, attempt translation
+                                                if ($idx === 0 && $tryProvider && $tryModel) {
+                                                    try {
+                                                        $t_prompt = "If the following text is not in $default_lang, translate it to $default_lang. Provide up to 3 common synonyms or related product keywords in $default_lang, separated by commas. Output ONLY the comma-separated list. If it is already in $default_lang, output EXACTLY the word 'SAME'. Text: \"$current_q\"";
+                                                        $t_msg = [
+                                                            new \WordPress\AiClient\Messages\DTO\UserMessage([
+                                                                new \WordPress\AiClient\Messages\DTO\MessagePart($t_prompt)
+                                                            ])
+                                                        ];
+                                                        $t_query = \WordPress\AiClient\AiClient::prompt($t_msg);
+                                                        $t_query->usingModelPreference([$tryProvider, $tryModel]);
+                                                        $t_res = trim($t_query->generateResult()->toText());
+                                                        $t_res = trim($t_res, '"\'');
+                                                        error_log("WIZARD AI SEARCH TRANSLATION: " . $current_q . " -> " . $t_res);
+                                                        if ($t_res !== 'SAME' && !empty($t_res)) {
+                                                            $synonyms = array_map('trim', explode(',', $t_res));
+                                                            foreach ($synonyms as $syn) {
+                                                                if (!empty($syn) && strtolower($syn) !== strtolower($current_q) && !in_array($syn, $search_queries)) {
+                                                                    $search_queries[] = $syn;
+                                                                }
+                                                            }
+                                                        }
+                                                    } catch (\Exception $e) {}
+                                                }
                                             }
-                                            $tool_result = ['products' => $p_data];
+                                            
+                                            if (empty($p_data)) {
+                                                $tool_result = ['error' => 'No products found. Inform the user.'];
+                                            } else {
+                                                $tool_result = ['products' => $p_data, '_translated_query' => count($search_queries) > 1 ? $search_queries[1] : false];
+                                            }
                                         } else {
                                             $tool_result = ['error' => 'Query is required.'];
                                         }
@@ -635,24 +697,62 @@ trait Chat {
                                 if ($name === 'search_site_content') {
                                     $q = isset($args['query']) ? sanitize_text_field($args['query']) : '';
                                     if (!empty($q)) {
-                                        $search_query = new \WP_Query([
-                                            's' => $q,
-                                            'post_type' => ['post', 'page', 'product'],
-                                            'post_status' => 'publish',
-                                            'posts_per_page' => 5,
-                                        ]);
+                                        $search_queries = [$q];
                                         $search_results = [];
-                                        if ($search_query->have_posts()) {
-                                            foreach ($search_query->posts as $p) {
-                                                $search_results[] = [
-                                                    'title' => $p->post_title,
-                                                    'type' => $p->post_type,
-                                                    'url' => get_permalink($p->ID),
-                                                    'snippet' => wp_trim_words(strip_shortcodes(strip_tags($p->post_content)), 100)
-                                                ];
+                                        $default_lang = class_exists('SitePress') ? apply_filters('wpml_default_language', NULL) : get_bloginfo('language');
+                                        
+                                        for ($idx = 0; $idx < count($search_queries); $idx++) {
+                                            $current_q = $search_queries[$idx];
+                                            $search_query = new \WP_Query([
+                                                's' => $current_q,
+                                                'post_type' => ['post', 'page', 'product'],
+                                                'post_status' => 'publish',
+                                                'posts_per_page' => 5,
+                                            ]);
+                                            
+                                            if ($search_query->have_posts()) {
+                                                foreach ($search_query->posts as $p) {
+                                                    $search_results[] = [
+                                                        'title' => $p->post_title,
+                                                        'type' => $p->post_type,
+                                                        'url' => get_permalink($p->ID),
+                                                        'snippet' => wp_trim_words(strip_shortcodes(strip_tags($p->post_content)), 100)
+                                                    ];
+                                                }
+                                                break; // Found results!
+                                            }
+                                            
+                                            // If empty and it's the first try, attempt translation
+                                            if ($idx === 0 && $tryProvider && $tryModel) {
+                                                try {
+                                                    $t_prompt = "If the following text is not in $default_lang, translate it to $default_lang. Provide up to 3 common synonyms or related keywords in $default_lang, separated by commas. Output ONLY the comma-separated list. If it is already in $default_lang, output EXACTLY the word 'SAME'. Text: \"$current_q\"";
+                                                    $t_msg = [
+                                                        new \WordPress\AiClient\Messages\DTO\UserMessage([
+                                                            new \WordPress\AiClient\Messages\DTO\MessagePart($t_prompt)
+                                                        ])
+                                                    ];
+                                                    $t_query = \WordPress\AiClient\AiClient::prompt($t_msg);
+                                                    $t_query->usingModelPreference([$tryProvider, $tryModel]);
+                                                    $t_res = trim($t_query->generateResult()->toText());
+                                                    $t_res = trim($t_res, '"\'');
+                                                    error_log("WIZARD AI CONTENT SEARCH TRANSLATION: " . $current_q . " -> " . $t_res);
+                                                    if ($t_res !== 'SAME' && !empty($t_res)) {
+                                                        $synonyms = array_map('trim', explode(',', $t_res));
+                                                        foreach ($synonyms as $syn) {
+                                                            if (!empty($syn) && strtolower($syn) !== strtolower($current_q) && !in_array($syn, $search_queries)) {
+                                                                $search_queries[] = $syn;
+                                                            }
+                                                        }
+                                                    }
+                                                } catch (\Exception $e) {}
                                             }
                                         }
-                                        $tool_result = ['results' => $search_results];
+                                        
+                                        if (empty($search_results)) {
+                                            $tool_result = ['error' => 'No results found. Inform the user.'];
+                                        } else {
+                                            $tool_result = ['results' => $search_results, '_translated_query' => count($search_queries) > 1 ? $search_queries[1] : false];
+                                        }
                                     } else {
                                         $tool_result = ['error' => 'Query is required.'];
                                     }
@@ -775,10 +875,7 @@ trait Chat {
                                     'comment_approved' => 1
                                 ]);
                                 
-                                $tool_info = "";
-                                if (!empty($frontend_actions)) {
-                                    $tool_info = "\n\n*(Used " . count($frontend_actions) . " actions)*";
-                                }
+                                // Removed $tool_info debug text
 
                                 if ($user_comment_id) {
                                     update_comment_meta($user_comment_id, 'wai_session_id', $session_id);
@@ -788,7 +885,7 @@ trait Chat {
                                 $ai_comment_id = wp_insert_comment([
                                     'comment_post_ID' => $request_post_id,
                                     'comment_author' => 'Wizard AI',
-                                    'comment_content' => wp_slash($display_text . $tool_info),
+                                    'comment_content' => wp_slash($ai_text),
                                     'comment_type' => 'wai_chat',
                                     'comment_approved' => 1
                                 ]);
@@ -808,7 +905,8 @@ trait Chat {
                         'success' => true,
                         'reply' => $display_text,
                         'session_id' => $session_id,
-                        'frontend_actions' => $frontend_actions
+                        'frontend_actions' => $frontend_actions,
+                        'date_gmt' => current_time('mysql', 1)
                     ]);
                 } catch (\Exception $e) {
                     $last_exception = $e;

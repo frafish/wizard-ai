@@ -27,7 +27,9 @@ trait SafeMode {
             "\$is_toggle_rest = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wizard-ai/v1/toggle-safe-mode') !== false;\n" .
             "\$is_cron = strpos(\$_SERVER['REQUEST_URI'] ?? '', '/wp-cron.php') !== false;\n" .
             "\$is_login = strpos(\$_SERVER['REQUEST_URI'] ?? '', 'wp-login.php') !== false;\n" .
-            "\$enforce_ai = file_exists(ABSPATH . '.wai_safe') || (isset(\$_GET['wai_enforce_safe_mode']) && \$_GET['wai_enforce_safe_mode'] === '1');\n" .
+            "\$saved_token = get_option('wai_mcp_token', '');\n" .
+            "\$valid_token = !empty(\$saved_token) && isset(\$_REQUEST['token']) && \$_REQUEST['token'] === \$saved_token;\n" .
+            "\$enforce_ai = file_exists(ABSPATH . '.wai_safe') || (isset(\$_REQUEST['wai_enforce_safe_mode']) && \$_REQUEST['wai_enforce_safe_mode'] === '1' && (!\$is_login || \$valid_token));\n" .
             "\n" .
             "// Autonomous Cron Crash Recovery\n" .
             "if (\$is_cron) {\n" .
@@ -71,6 +73,14 @@ trait SafeMode {
             "    });\n" .
             "    add_filter('stylesheet', function(\$theme) { return 'wizard-ai-safe-theme'; });\n" .
             "    add_filter('template', function(\$theme) { return 'wizard-ai-safe-theme'; });\n" .
+            "    if (\$is_login) {\n" .
+            "        add_action('login_form', function() {\n" .
+            "            echo '<input type=\"hidden\" name=\"wai_enforce_safe_mode\" value=\"1\" />';\n" .
+            "            if (isset(\$_REQUEST['token'])) {\n" .
+            "                echo '<input type=\"hidden\" name=\"token\" value=\"' . esc_attr(\$_REQUEST['token']) . '\" />';\n" .
+            "            }\n" .
+            "        });\n" .
+            "    }\n" .
             "}\n" .
             "\n" .
             "// --- Wizard AI Sandbox ---\n" .

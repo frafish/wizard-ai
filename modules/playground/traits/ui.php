@@ -12,8 +12,6 @@ trait Ui {
         }
 
         $channel = get_option('wizard_blocks_gemini_api_channel', 'v1beta');
-        $cm_settings = property_exists($this, 'cm_settings') ? \WizardAi\Modules\Ai\Ai::instance()->cm_settings : false;
-        $cm_sql_settings = property_exists($this, 'cm_sql_settings') ? \WizardAi\Modules\Ai\Ai::instance()->cm_sql_settings : false;
         ?>
         <div class="wrap">
             <h1 style="display: flex; align-items: center; gap: 10px;">
@@ -372,24 +370,25 @@ trait Ui {
                 </p>
             </div>
         </div>
-        <script>
-        window.waiSettings = {
-            nonceTest: '<?php echo esc_js(wp_create_nonce("wai_test_nonce")); ?>',
-            nonceRest: '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>',
-            restUrl: '<?php echo esc_js(esc_url_raw(rest_url('wizard-ai/v1/ai-chat'))); ?>',
-            homeUrl: '<?php echo esc_js(esc_url_raw(home_url('/'))); ?>',
-            textTesting: '<?php echo esc_js(__('Testing...', 'wizard-ai')); ?>',
-            textAiThinking: '<?php echo esc_js(__('AI is thinking...', 'wizard-ai')); ?>',
-            preferredModel: '<?php echo esc_js(get_user_meta(get_current_user_id(), '_wai_preferred_model', true)); ?>',
-            cmSettings: <?php echo empty($cm_settings) ? json_encode(['codemirror' => ['mode' => 'php', 'lineNumbers' => true]]) : wp_json_encode($cm_settings); ?>,
-            cmSqlSettings: <?php echo empty($cm_sql_settings) ? json_encode(['codemirror' => ['mode' => 'sql', 'lineNumbers' => true]]) : wp_json_encode($cm_sql_settings); ?>,
-            debugMode: <?php echo (defined('WP_DEBUG') && WP_DEBUG) ? 'true' : 'false'; ?>,
-            ragUrl: '<?php echo esc_js(wp_upload_dir()['baseurl'] . '/wai/rag.json'); ?>'
-        };
-        </script>
-        <!-- Load Select2 -->
-        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+        <?php
+        $safe_token = get_option('wai_mcp_token');
+        if (empty($safe_token)) {
+            $safe_token = wp_generate_password(24, false);
+            update_option('wai_mcp_token', $safe_token);
+        }
+        $playground_url = admin_url('admin.php?page=wizard-ai');
+        $safe_mode_url = add_query_arg(['wai_enforce_safe_mode' => '1', 'token' => $safe_token], wp_login_url($playground_url));
+        ?>
+        <div class="notice notice-error inline" style="margin-left: 0;">
+            <p><strong><?php esc_html_e('Emergency Safe Mode Login', 'wizard-ai'); ?>:</strong> <?php esc_html_e('If a plugin or theme causes a fatal 500 error that locks you out of the WordPress admin, use this URL to safely log in with all plugins/themes disabled:', 'wizard-ai'); ?></p>
+            <p style="background: #fff; padding: 10px; font-weight: bold; overflow-x: auto;">
+                <a href="<?php echo esc_url($safe_mode_url); ?>" target="_blank" style="text-decoration: none;">
+                    <?php echo esc_url($safe_mode_url); ?>
+                </a>
+            </p>
+            <p><em><?php esc_html_e('Save this URL somewhere safe. The unique token prevents bots from bypassing system protections (like Wordfence 2FA) by forcing safe mode.', 'wizard-ai'); ?></em></p>
+        </div>
         <?php
     }
 
@@ -411,10 +410,30 @@ trait Ui {
             wp_enqueue_style('code-editor');
             
             wp_enqueue_script('jquery-ui-resizable');
+            
+            wp_enqueue_style('wai-select2', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css', array(), '4.1.0-rc.0');
+            wp_enqueue_script('wai-select2', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js', array('jquery'), '4.1.0-rc.0', true);
+            
             wp_enqueue_style('wbai-playground-style', WIZARD_AI_URL . 'modules/playground/assets/css/playground.css', array(), filemtime(WIZARD_AI_PATH . 'modules/playground/assets/css/playground.css'));
             
             // The JS file was probably enqueued elsewhere previously or was missing. Let's make sure it's enqueued here.
-            wp_enqueue_script('wbai-playground-script', WIZARD_AI_URL . 'modules/playground/assets/js/playground.js', array('jquery'), filemtime(WIZARD_AI_PATH . 'modules/playground/assets/js/playground.js'), true);
+            wp_enqueue_script('wbai-playground-script', WIZARD_AI_URL . 'modules/playground/assets/js/playground.js', array('jquery', 'wai-select2'), filemtime(WIZARD_AI_PATH . 'modules/playground/assets/js/playground.js'), true);
+            
+            $wai_settings = [
+                'nonceTest' => wp_create_nonce("wai_test_nonce"),
+                'nonceRest' => wp_create_nonce("wp_rest"),
+                'restUrl' => esc_url_raw(rest_url('wizard-ai/v1/ai-chat')),
+                'homeUrl' => esc_url_raw(home_url('/')),
+                'textTesting' => __('Testing...', 'wizard-ai'),
+                'textAiThinking' => __('AI is thinking...', 'wizard-ai'),
+                'preferredModel' => get_user_meta(get_current_user_id(), '_wai_preferred_model', true),
+                'objectType' => 'toplevel_page_wizard-ai-playground',
+                'cmSettings' => \WizardAi\Modules\Ai\Ai::instance()->cm_settings ?: ['codemirror' => ['mode' => 'php', 'lineNumbers' => true]],
+                'cmSqlSettings' => \WizardAi\Modules\Ai\Ai::instance()->cm_sql_settings ?: ['codemirror' => ['mode' => 'sql', 'lineNumbers' => true]],
+                'debugMode' => (defined('WP_DEBUG') && WP_DEBUG) ? true : false,
+                'ragUrl' => wp_upload_dir()['baseurl'] . '/wai/rag.json'
+            ];
+            wp_add_inline_script('wbai-playground-script', 'window.waiSettings = ' . wp_json_encode($wai_settings) . ';', 'before');
             
             // Enqueue native WordPress media uploader
             wp_enqueue_media();

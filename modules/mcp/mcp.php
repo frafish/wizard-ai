@@ -290,6 +290,20 @@ class Mcp {
             <h1><?php esc_html_e('MCP & GPT Integrations', 'wizard-ai'); ?></h1>
             <p><?php esc_html_e('Use this server to expose your WordPress site tools to Claude via MCP, or GPT via Custom Actions.', 'wizard-ai'); ?></p>
             
+            <?php 
+            $playground_url = admin_url('admin.php?page=wizard-ai');
+            $safe_mode_url = add_query_arg(['wai_enforce_safe_mode' => '1', 'token' => $token], wp_login_url($playground_url)); 
+            ?>
+            <div class="notice notice-error inline" style="margin-bottom: 15px; margin-top: 15px;">
+                <p><strong><?php esc_html_e('Emergency Safe Mode Login', 'wizard-ai'); ?>:</strong> <?php esc_html_e('If a plugin or theme causes a fatal 500 error that locks you out of the WordPress admin, use this URL to safely log in with all plugins disabled:', 'wizard-ai'); ?></p>
+                <p style="background: #fff; padding: 10px;font-weight: bold;">
+                    <a href="<?php echo esc_url($safe_mode_url); ?>" target="_blank" style="text-decoration: none;">
+                        <?php echo esc_url($safe_mode_url); ?>
+                    </a>
+                </p>
+                <p><em><?php esc_html_e('Save this URL somewhere safe. The unique token prevents bots from bypassing system protections (like Wordfence 2FA) by forcing safe mode.', 'wizard-ai'); ?></em></p>
+            </div>
+            
             <form method="post" action="">
                 <?php wp_nonce_field('wai_mcp_settings', 'wai_mcp_settings_nonce'); ?>
                 <table class="form-table">
@@ -379,40 +393,38 @@ class Mcp {
                     <ol style="margin-left: 1.5em; margin-top: 5px;">
                         <li><strong><?php esc_html_e('Step 1: Initial System Prompt (The Rules)', 'wizard-ai'); ?></strong><br>
                             <?php esc_html_e('Copy and paste this instruction when starting a new chat:', 'wizard-ai'); ?>
-                            <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
-                                You are managing a WordPress site that exposes an MCP Server over REST API. You must communicate with it by using your terminal/command tools to execute `curl` requests.<br><br>
-                                <strong>Endpoint:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1/mcp'); ?><br>
-                                <strong>Authentication Header:</strong> X-WAI-MCP-TOKEN: <?php echo esc_html($token); ?><br><br>
-                                If the REST API returns a 500 error, append `?wai_enforce_safe_mode=1` to the endpoint URL to bypass broken plugins and fix the fatal error safely.<br><br>
-                                <strong>NEVER</strong> modify `functions.php` to add new custom PHP logic. Always use the `wizard-ai/sandbox-write` tool to create persistent custom scripts safely.
+                            <div style="position: relative; background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
+                                <button type="button" class="button button-small" style="position: absolute; top: 10px; right: 10px;" onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText); this.innerText='Copied!'; setTimeout(() => { this.innerText='Copy'; }, 2000);"><?php esc_html_e('Copy', 'wizard-ai'); ?></button>
+                                <div>
+                                    You are managing a WordPress site that exposes an MCP Server over REST API. You must communicate with it by using your terminal/command tools to execute `curl` requests.<br><br>
+                                    <strong>Endpoint:</strong> <?php echo esc_url(get_site_url() . '/wp-json/wizard-ai/v1/mcp'); ?><br>
+                                    <strong>Authentication Header:</strong> X-WAI-MCP-TOKEN: <?php echo esc_html($token); ?><br><br>
+                                    If the REST API returns a 500 error, append `?wai_enforce_safe_mode=1` to the endpoint URL to bypass broken plugins and fix the fatal error safely.<br><br>
+                                    <strong>NEVER</strong> modify `functions.php` to add new custom PHP logic. Always use the `wizard-ai/sandbox-write` tool to create persistent custom scripts safely.
+                                </div>
                             </div>
                         </li>
                         <li><strong><?php esc_html_e('Step 2: Listing Available Tools (Discovery)', 'wizard-ai'); ?></strong><br>
                             <?php esc_html_e('Tell the AI to discover the tools:', 'wizard-ai'); ?>
-                            <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
-                                Use `curl` to send a POST request with the JSON-RPC method `tools/list` to discover what capabilities you have on this site.
+                            <div style="position: relative; background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
+                                <button type="button" class="button button-small" style="position: absolute; top: 10px; right: 10px;" onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText); this.innerText='Copied!'; setTimeout(() => { this.innerText='Copy'; }, 2000);"><?php esc_html_e('Copy', 'wizard-ai'); ?></button>
+                                <div>
+                                    Use `curl` to send a POST request with the JSON-RPC method `tools/list` to discover what capabilities you have on this site.
+                                </div>
                             </div>
                         </li>
                         <li><strong><?php esc_html_e('Step 3: Executing a Tool (Action)', 'wizard-ai'); ?></strong><br>
                             <?php esc_html_e('Once the tools are listed, you can ask the AI to perform an action using a JSON-RPC payload for `tools/call`. For example:', 'wizard-ai'); ?>
-                            <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
-                                Search the site for posts about 'AI Plugins' and read the content of the first result using the appropriate tools.
+                            <div style="position: relative; background: #f0f0f0; padding: 15px; border-left: 4px solid #1a1a1a; margin: 10px 0; font-family: monospace; overflow-x: auto;">
+                                <button type="button" class="button button-small" style="position: absolute; top: 10px; right: 10px;" onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText); this.innerText='Copied!'; setTimeout(() => { this.innerText='Copy'; }, 2000);"><?php esc_html_e('Copy', 'wizard-ai'); ?></button>
+                                <div>
+                                    Search the site for posts about 'AI Plugins' and read the content of the first result using the appropriate tools.
+                                </div>
                             </div>
                         </li>
                     </ol>
                 </div>
-                
-                <!-- Emergency Recovery Login -->
-                <div class="postbox" style="flex: 1; min-width: 300px; padding: 20px;">
-                    <h2 style="margin-top: 0; padding: 0; border-bottom: none;"><?php esc_html_e('Emergency Safe Mode Login', 'wizard-ai'); ?></h2>
-                    <p><?php esc_html_e('If a plugin or theme causes a fatal 500 error that locks you out of the WordPress admin, use this URL to safely log in with all plugins disabled:', 'wizard-ai'); ?></p>
-                    <div style="background: #fcf0f1; border-left: 4px solid #d63638; padding: 15px; margin-bottom: 15px; font-family: monospace; overflow-x: auto; font-weight: bold;">
-                        <a href="<?php echo esc_url(wp_login_url() . '?wai_enforce_safe_mode=1'); ?>" target="_blank">
-                            <?php echo esc_url(wp_login_url() . '?wai_enforce_safe_mode=1'); ?>
-                        </a>
-                    </div>
-                    <p><em><?php esc_html_e('Save this URL somewhere safe. When you visit it, Wizard AI\'s Safe Mode will activate on the login screen, allowing you to bypass fatal errors and access the dashboard to disable the offending plugin.', 'wizard-ai'); ?></em></p>
-                </div>
+
             </div>
 
             <!-- Connected OAuth Applications -->

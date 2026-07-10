@@ -67,9 +67,19 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             messagesArea.scrollTop = messagesArea.scrollHeight;
 
-            if (hasEmail) {
-                const hint = document.getElementById('wai-chatbot-email-hint');
-                if (hint) hint.style.display = 'none';
+            const hint = document.getElementById('wai-chatbot-email-hint');
+            if (hint) {
+                const hasAiReply = chatHistory.some(m => m.role === 'ai');
+                if (hasEmail) {
+                    hint.style.display = 'none';
+                } else if (hasAiReply) {
+                    hint.style.display = 'block';
+                }
+            }
+            
+            const gdprNotice = document.getElementById('wai-chatbot-gdpr-notice');
+            if (gdprNotice) {
+                gdprNotice.style.display = 'none';
             }
         }
     }
@@ -185,7 +195,10 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             const consentBox = document.getElementById('wai-chatbot-gdpr-consent');
-            if (consentBox && !consentBox.checked) {
+            const noticeBox = document.getElementById('wai-chatbot-gdpr-notice');
+            const isNoticeVisible = noticeBox && noticeBox.style.display !== 'none';
+            
+            if (isNoticeVisible && consentBox && !consentBox.checked) {
                 consentBox.parentElement.style.color = 'red';
                 consentBox.focus();
                 return;
@@ -331,14 +344,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!text) return;
         
         const consentBox = document.getElementById('wai-chatbot-gdpr-consent');
-        if (consentBox && !consentBox.checked) {
+        const noticeBox = document.getElementById('wai-chatbot-gdpr-notice');
+        const isNoticeVisible = noticeBox && noticeBox.style.display !== 'none';
+        
+        if (isNoticeVisible && consentBox && !consentBox.checked) {
             consentBox.parentElement.style.color = 'red';
             consentBox.focus();
             return;
         } else if (consentBox) {
             consentBox.parentElement.style.color = '';
-            // Hide notice after consent since it's now approved for the session
-            const noticeBox = document.getElementById('wai-chatbot-gdpr-notice');
             if (noticeBox) noticeBox.style.display = 'none';
         }
         
@@ -416,8 +430,22 @@ document.addEventListener('DOMContentLoaded', function() {
             
             messagesArea.removeChild(loadingDiv);
             
-            if (data.success && data.reply) {
-                addMessage(data.reply, 'ai');
+            if (data.date_gmt) {
+                lastPollTime = data.date_gmt;
+            }
+            
+            if (data.success && (data.reply || data.manual_mode)) {
+                if (data.reply) {
+                    addMessage(data.reply, 'ai');
+                }
+                
+                const hint = document.getElementById('wai-chatbot-email-hint');
+                if (hint) {
+                    const hasEmail = chatHistory.some(m => m.role === 'user' && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(m.text));
+                    if (!hasEmail) {
+                        hint.style.display = 'block';
+                    }
+                }
                 
                 if (data.frontend_actions && data.frontend_actions.length > 0) {
                     data.frontend_actions.forEach(action => {
@@ -435,9 +463,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 console.error('Form fill error:', err);
                             }
                         } else if (action.type === 'show_email_form') {
-                            const hint = document.getElementById('wai-chatbot-email-hint');
-                            if (hint) {
-                                hint.style.display = 'block';
+                            const emailHint = document.getElementById('wai-chatbot-email-hint');
+                            const userHasEmail = chatHistory.some(m => m.role === 'user' && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(m.text));
+                            if (emailHint && !userHasEmail) {
+                                emailHint.style.display = 'block';
                                 setTimeout(() => {
                                     messagesArea.scrollTop = messagesArea.scrollHeight;
                                 }, 100);
@@ -524,7 +553,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 data.messages.forEach(msg => {
                     // Avoid duplicating user messages we just sent
                     if (msg.role !== 'user') {
-                        addMessage(msg.text, msg.role);
+                        // Anti-duplicate check: prevent consecutive identical messages
+                        const isDuplicate = chatHistory.length > 0 && 
+                                            chatHistory[chatHistory.length - 1].role === msg.role && 
+                                            chatHistory[chatHistory.length - 1].text === msg.text;
+                                            
+                        if (!isDuplicate) {
+                            addMessage(msg.text, msg.role);
+                            if (msg.role === 'ai') {
+                                const hint = document.getElementById('wai-chatbot-email-hint');
+                                if (hint) {
+                                    const hasEmail = chatHistory.some(m => m.role === 'user' && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(m.text));
+                                    if (!hasEmail) {
+                                        hint.style.display = 'block';
+                                    }
+                                }
+                            }
+                        }
                     }
                     lastPollTime = msg.date_gmt;
                 });

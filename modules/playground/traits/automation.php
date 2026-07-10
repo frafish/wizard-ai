@@ -387,12 +387,16 @@ trait Automation {
                 $prompt .= "\n\n[SYSTEM NOTE: The previous execution crashed with a Fatal 500 Error. Safe Mode is now active. Please use tools carefully to debug and resolve the issue.]";
             }
             $request->set_param('prompt', $prompt);
+            $tasks[$task_id]['last_log'] = "[" . current_time('mysql') . "] Task Started.\n";
+            update_option('wizard_ai_automated_tasks', $tasks);
         } elseif (!empty($task['running_action']) && $task['running_action'] === 'tool_calls') {
             $request->set_param('execute_tools', true);
-            // If resuming after a crash during a tool execution, we might not have the tool output. 
-            // The AiClient will attempt to re-execute the pending tool calls. Safe mode is enforced.
+            $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "[" . current_time('mysql') . "] Resuming task execution (tool calls)...\n";
+            update_option('wizard_ai_automated_tasks', $tasks);
         } elseif (!empty($task['running_action']) && $task['running_action'] === 'broken_site') {
             $request->set_param('prompt', "[CRITICAL ALERT]: Your last actions completed, but caused the entire website to return a 500 Fatal Error! Safe Mode has been forcefully activated. Please review the changes you just made and fix the site immediately.");
+            $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "[" . current_time('mysql') . "] Resuming task execution (Safe Mode Recovery)...\n";
+            update_option('wizard_ai_automated_tasks', $tasks);
         }
         
         $request->set_param('is_cron', true);
@@ -410,7 +414,17 @@ trait Automation {
             
             if ($last_action === 'tool_calls') {
                 $iterations++;
+                if (!empty($data['tools'])) {
+                    foreach ($data['tools'] as $tool) {
+                        $tool_args = !empty($tool['args']) ? json_encode($tool['args']) : '';
+                        $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "[" . current_time('mysql') . "] Executing tool: " . $tool['name'] . (!empty($tool_args) ? " (Args: " . $tool_args . ")" : "") . "\n";
+                    }
+                    update_option('wizard_ai_automated_tasks', $tasks);
+                }
+
                 if ($iterations >= $max_iterations) {
+                    $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "[" . current_time('mysql') . "] Yielding execution to next cron cycle to prevent timeouts...\n";
+                    update_option('wizard_ai_automated_tasks', $tasks);
                     break; // Will resume next tick
                 }
                 
@@ -450,7 +464,7 @@ trait Automation {
                 $tasks[$task_id]['running_conversation_id'] = $conversation_id;
                 $tasks[$task_id]['running_action'] = 'broken_site';
                 $tasks[$task_id]['is_running'] = false; // Yield to next cron
-                $tasks[$task_id]['last_log'] = "CRITICAL ERROR: The background task finished, but the website is now returning a 500 Error! Forcing an autonomous recovery iteration in Safe Mode.";
+                $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "\n[" . current_time('mysql') . "] CRITICAL ERROR: The background task finished, but the website is now returning a 500 Error! Forcing an autonomous recovery iteration in Safe Mode.";
             } else {
                 @unlink(ABSPATH . '.wai_safe');
                 // Task finished completely and site is healthy
@@ -463,13 +477,13 @@ trait Automation {
                 
                 if (!is_wp_error($response) && $response instanceof \WP_REST_Response) {
                     $data = $response->get_data();
-                    if (!empty($data['response']['text'])) {
-                        $tasks[$task_id]['last_log'] = wp_kses_post($data['response']['text']);
+                    if (!empty($data['response'])) {
+                        $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "\n[" . current_time('mysql') . "] Task Completed Successfully.\n" . wp_kses_post(is_string($data['response']) ? $data['response'] : (isset($data['response']['text']) ? $data['response']['text'] : json_encode($data['response'])));
                     } elseif (!empty($data['message'])) {
-                        $tasks[$task_id]['last_log'] = wp_kses_post($data['message']);
+                        $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "\n[" . current_time('mysql') . "] Task Completed.\n" . wp_kses_post($data['message']);
                     }
                 } elseif (is_wp_error($response)) {
-                    $tasks[$task_id]['last_log'] = 'Error: ' . $response->get_error_message();
+                    $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "\n[" . current_time('mysql') . "] Error: " . $response->get_error_message();
                 }
             }
         }

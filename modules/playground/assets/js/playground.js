@@ -132,6 +132,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         let modelsUrl = window.waiSettings.restUrl.replace('ai-chat', 'ai-models');
+        // Always enforce safe mode for models request to prevent it failing during 500 errors
+        modelsUrl += (modelsUrl.includes('?') ? '&' : '?') + 'wai_enforce_safe_mode=1';
+        
         fetch(modelsUrl, {
             headers: { 'X-WP-Nonce': window.waiSettings.nonceRest },
             cache: 'no-cache'
@@ -573,38 +576,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         data = await response.json();
                         if (window.waiSettings.debugMode) console.debug("[Wizard AI Playground] JSON Response Data:", data);
                     } catch (parseError) {
-                        if (!response.ok && response.status >= 500) {
-                            if (!aiEnforceSafeMode) {
-                                aiEnforceSafeMode = true;
-                                document.getElementById('wai-safemode-status').innerText = 'Strict Safe Mode Enforced (Auto-Recovered)';
-
-                                const toggleSafeModeBtn = document.getElementById('wai-toggle-safe-mode');
-                                if (toggleSafeModeBtn) {
-                                    toggleSafeModeBtn.classList.add('wai-safe-mode-active');
-                                    toggleSafeModeBtn.dataset.active = "1";
-                                }
-
-                                try {
-                                    await fetch(window.waiSettings.restUrl.replace('ai-chat', 'toggle-safe-mode') + '?wai_enforce_safe_mode=1', {
-                                        method: 'POST',
-                                        headers: { 'X-WP-Nonce': window.waiSettings.nonceRest, 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ force: 'enable' })
-                                    });
-                                } catch (e) { }
-                                chatEl.insertAdjacentHTML('beforeend', '<div class="wai-msg-error"><strong>System:</strong> A third-party plugin caused a Fatal Error (500) while the AI was processing. Safe Mode (.wai_safe) has been enforced for the AI to auto-recover.</div>');
-                                document.getElementById(loadingId).remove();
-
-                                // Instead of just retrying, we start a task to debug it
-                                const debugPrompt = "SYSTEM ALERT: A Fatal Error (HTTP 500) occurred during the last action. Safe Mode has been activated. Please use the wpab__ai__manage-debug tool to enable the debug log, reproduce the error, and fix the issue.";
-
-                                return await doStep({
-                                    conversation_id: requestBody.conversation_id,
-                                    prompt: debugPrompt,
-                                    model: document.getElementById('wai-playground-model') ? document.getElementById('wai-playground-model').value : ''
-                                }, window.waiSettings.textAiThinking, [], true);
-                            }
-                        }
-                        const err = new Error(`Server returned ${response.status}: ${response.statusText}`);
+                        const err = new Error(`Server returned ${response.status}: ${response.statusText} (Invalid JSON)`);
                         err.status = response.status;
                         throw err;
                     }
@@ -797,12 +769,20 @@ document.addEventListener('DOMContentLoaded', function () {
                                 toolNode.style.marginBottom = '8px';
 
                                 const header = document.createElement('div');
+                                header.className = 'wai-tool-header-toggle';
                                 header.style.cssText = 'display: flex; align-items: center; cursor: pointer; padding: 4px; border-radius: 4px; transition: background 0.2s;';
                                 header.onmouseover = () => header.style.background = '#e9ecef';
                                 header.onmouseout = () => header.style.background = 'transparent';
                                 header.innerHTML = '<span class="wai-tool-icon" style="margin-right: 8px;">⚙️</span><strong>' + friendlyName + '</strong> <span title="Click to view details" class="wai-tool-help">?</span>';
-
+                                
                                 const details = document.createElement('div');
+                                header.onclick = function(e) {
+                                    // Prevent other click listeners (like global ones) from interfering
+                                    e.preventDefault(); 
+                                    if (details) {
+                                        details.style.display = (details.style.display === 'none' || details.style.display === '') ? 'block' : 'none';
+                                    }
+                                };
                                 details.className = 'wai-tool-details';
                                 details.style.cssText = 'display: ' + (isSensitive ? 'block' : 'none') + '; margin-top: 5px; padding: 8px; background: #eee; border-radius: 4px; font-family: monospace; font-size: 11px; overflow-x: auto; white-space: pre-wrap;';
 
@@ -1047,6 +1027,12 @@ document.addEventListener('DOMContentLoaded', function () {
                             checkPromptQueue();
                         }
                     } else {
+                        if (response.status >= 500 || (data.data && data.data.status >= 500)) {
+                            const err = new Error(data.message || 'Unknown error');
+                            err.status = response.status >= 500 ? response.status : (data.data ? data.data.status : 500);
+                            throw err;
+                        }
+                        
                         let errorMessage = data.message || 'Unknown error';
                         errorMessage = errorMessage.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
                         chatEl.insertAdjacentHTML('beforeend', '<div class="wai-msg-error"><strong>Error:</strong><br>' + errorMessage + '</div>');
@@ -1101,7 +1087,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 fallback_models: fallbackModelsCheckbox ? fallbackModelsCheckbox.checked : false,
                 system_info_context: (document.getElementById('wai-include-system-info') && document.getElementById('wai-include-system-info').checked && document.getElementById('wai-system-info-context')) ? document.getElementById('wai-system-info-context').value : '',
                 session_context: document.getElementById('wai-session-context') ? document.getElementById('wai-session-context').value : '',
-                permanent_context: document.getElementById('wai-permanent-context') ? document.getElementById('wai-permanent-context').value : ''
+                permanent_context: document.getElementById('wai-permanent-context') ? document.getElementById('wai-permanent-context').value : '',
+                object_type: window.waiSettings.objectType || ''
             };
 
             let ragContext = '';

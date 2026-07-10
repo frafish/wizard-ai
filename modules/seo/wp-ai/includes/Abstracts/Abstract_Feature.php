@@ -12,7 +12,6 @@ namespace WordPress\AI\Abstracts;
 use InvalidArgumentException;
 use WordPress\AI\Contracts\Feature;
 use WordPress\AI\Features\Feature_Category;
-use WordPress\AI\Settings\Settings_Registration;
 
 /**
  * Base implementation for features.
@@ -169,7 +168,7 @@ abstract class Abstract_Feature implements Feature {
 	 * {@inheritDoc}
 	 */
 	final public function is_globally_enabled(): bool {
-		return (bool) get_option( Settings_Registration::GLOBAL_OPTION, false );
+		return true;
 	}
 
 	/**

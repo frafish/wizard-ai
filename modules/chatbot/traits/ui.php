@@ -95,6 +95,7 @@ trait Ui {
                     </div>
                     <button id="wai-chatbot-send" class="button button-primary"><span class="dashicons dashicons-controls-play"></span></button>
                 </div>
+                <?php if (get_option('wai_chatbot_gdpr_required', 1)): ?>
                 <div id="wai-chatbot-gdpr-notice">
                     <?php 
                     $default_gdpr_text = __('By chatting, you agree to our processing of conversation logs to assist with your request.', 'wizard-ai');
@@ -110,6 +111,7 @@ trait Ui {
                     }
                     ?>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
         <?php
