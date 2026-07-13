@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Playground\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Automation {
 
     public function register_automation_hooks() {
@@ -78,6 +78,7 @@ trait Automation {
                             <tr>
                                 <th><?php esc_html_e('Task Name', 'wizard-ai'); ?></th>
                                 <th><?php esc_html_e('Prompt', 'wizard-ai'); ?></th>
+                                <th><?php esc_html_e('Model', 'wizard-ai'); ?></th>
                                 <th><?php esc_html_e('Schedule', 'wizard-ai'); ?></th>
                                 <th><?php esc_html_e('Last Run', 'wizard-ai'); ?></th>
                                 <th><?php esc_html_e('Status', 'wizard-ai'); ?></th>
@@ -86,7 +87,7 @@ trait Automation {
                         </thead>
                         <tbody>
                             <?php if (empty($tasks)): ?>
-                                <tr><td colspan="6"><?php esc_html_e('No automated tasks scheduled.', 'wizard-ai'); ?></td></tr>
+                                <tr><td colspan="7"><?php esc_html_e('No automated tasks scheduled.', 'wizard-ai'); ?></td></tr>
                             <?php else: ?>
                                 <?php foreach ($tasks as $id => $task): ?>
                                 <tr>
@@ -97,8 +98,9 @@ trait Automation {
                                         <?php endif; ?>
                                     </td>
                                     <td><code><?php echo esc_html(mb_strimwidth($task['prompt'], 0, 50, '...')); ?></code></td>
+                                    <td><?php echo esc_html(!empty($task['model']) ? $task['model'] : __('Default', 'wizard-ai')); ?></td>
                                     <td><?php echo esc_html(ucfirst($task['schedule'])); ?></td>
-                                    <td><?php echo $task['last_run'] ? esc_html(date_i18n('Y-m-d H:i:s', $task['last_run'])) : __('Never', 'wizard-ai'); ?></td>
+                                    <td><?php echo $task['last_run'] ? esc_html(date_i18n('Y-m-d H:i:s', $task['last_run'])) : esc_html__('Never', 'wizard-ai'); ?></td>
                                     <td><?php echo empty($task['active']) ? '<span style="color:red;">Paused</span>' : '<span style="color:green;">Active</span>'; ?></td>
                                     <td>
                                         <button class="button button-small wai-run-task" data-id="<?php echo esc_attr($id); ?>"><?php esc_html_e('Run Now', 'wizard-ai'); ?></button>
@@ -119,6 +121,12 @@ trait Automation {
                     <div style="margin-bottom: 10px;">
                         <label><strong><?php esc_html_e('Task Name', 'wizard-ai'); ?></strong></label><br>
                         <input type="text" id="wai-task-name" style="width: 100%;">
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label><strong><?php esc_html_e('Model (Optional)', 'wizard-ai'); ?></strong></label><br>
+                        <select id="wai-task-model" style="width: 100%;">
+                            <option value=""><?php esc_html_e('Default Model', 'wizard-ai'); ?></option>
+                        </select>
                     </div>
                     <div style="margin-bottom: 10px;">
                         <label><strong><?php esc_html_e('Prompt', 'wizard-ai'); ?></strong></label><br>
@@ -151,6 +159,30 @@ trait Automation {
         </div>
 
         <script>
+        fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-ai/v1/ai-models"))); ?>', {
+            headers: {
+                'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>'
+            }
+        })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success && res.models) {
+                    const select = document.getElementById('wai-task-model');
+                    Object.entries(res.models).forEach(([provider, modelsObj]) => {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = provider;
+                        Object.entries(modelsObj).forEach(([id, name]) => {
+                            const opt = document.createElement('option');
+                            opt.value = id;
+                            opt.innerText = name;
+                            optgroup.appendChild(opt);
+                        });
+                        select.appendChild(optgroup);
+                    });
+                    if (typeof jQuery !== 'undefined' && jQuery.fn.select2) jQuery(select).select2();
+                }
+            });
+
         document.getElementById('wai-task-schedule').addEventListener('change', function() {
             document.getElementById('wai-custom-cron-wrap').style.display = this.value === 'custom' ? 'block' : 'none';
         });
@@ -166,18 +198,19 @@ trait Automation {
             }
             
             const allow_critical = document.getElementById('wai-task-allow-critical').checked;
+            const model = document.getElementById('wai-task-model').value;
             
             if (!name || !prompt) { alert('Name and prompt are required'); return; }
             btn.disabled = true;
             btn.innerText = 'Saving...';
             
-            fetch(ajaxurl.replace('admin-ajax.php', '') + 'wp-json/wizard-ai/v1/automation/save', {
+            fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-ai/v1/automation/save"))); ?>', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>'
                 },
-                body: JSON.stringify({ name: name, prompt: prompt, schedule: schedule, allow_critical: allow_critical })
+                body: JSON.stringify({ name: name, prompt: prompt, schedule: schedule, allow_critical: allow_critical, model: model })
             }).then(r => r.json()).then(res => {
                 location.reload();
             });
@@ -187,7 +220,7 @@ trait Automation {
             btn.addEventListener('click', function() {
                 if (!confirm('Delete this task?')) return;
                 const id = this.dataset.id;
-                fetch(ajaxurl.replace('admin-ajax.php', '') + 'wp-json/wizard-ai/v1/automation/delete', {
+                fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-ai/v1/automation/delete"))); ?>', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -206,7 +239,7 @@ trait Automation {
                 const originalText = this.innerText;
                 this.innerText = 'Running...';
                 this.disabled = true;
-                fetch(ajaxurl.replace('admin-ajax.php', '') + 'wp-json/wizard-ai/v1/automation/run-now', {
+                fetch('<?php echo esc_js(esc_url_raw(rest_url("wizard-ai/v1/automation/run-now"))); ?>', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -225,7 +258,8 @@ trait Automation {
 
     public function wb_ai_automation_log_page_html() {
         if (!current_user_can('manage_options')) return;
-        $id = isset($_GET['id']) ? sanitize_text_field($_GET['id']) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $id = isset($_GET['id']) ? sanitize_text_field(wp_unslash($_GET['id'])) : '';
         $tasks = get_option('wizard_ai_automated_tasks', []);
         
         if (empty($id) || !isset($tasks[$id])) {
@@ -253,6 +287,7 @@ trait Automation {
             'prompt' => sanitize_textarea_field($request->get_param('prompt')),
             'schedule' => sanitize_text_field($request->get_param('schedule')),
             'allow_critical' => rest_sanitize_boolean($request->get_param('allow_critical')),
+            'model' => sanitize_text_field($request->get_param('model') ?? ''),
             'user_id' => get_current_user_id(),
             'active' => true,
             'last_run' => 0
@@ -284,11 +319,11 @@ trait Automation {
         $now = time();
         if ($now - $last_run < 50) return false;
 
-        $c_min = intval(date('i', $now));
-        $c_hour = intval(date('H', $now));
-        $c_dom = intval(date('d', $now));
-        $c_month = intval(date('m', $now));
-        $c_dow = intval(date('w', $now));
+        $c_min = intval(gmdate('i', $now));
+        $c_hour = intval(gmdate('H', $now));
+        $c_dom = intval(gmdate('d', $now));
+        $c_month = intval(gmdate('m', $now));
+        $c_dow = intval(gmdate('w', $now));
         
         $match = function($val, $current) {
             if ($val === '*') return true;
@@ -376,6 +411,9 @@ trait Automation {
         
         $request = new \WP_REST_Request('POST', '/wizard-ai/v1/ai-chat');
         $request->set_param('conversation_id', $conversation_id);
+        if (!empty($task['model'])) {
+            $request->set_param('model', $task['model']);
+        }
         
         if ($crashed_last_time) {
             $request->set_param('wai_enforce_safe_mode', 1);
@@ -460,13 +498,15 @@ trait Automation {
             
             if ($is_error || $code >= 500) {
                 // The site is broken! Force a recovery iteration!
-                file_put_contents(ABSPATH . '.wai_safe', '1');
+                $upload_dir = wp_upload_dir();
+                file_put_contents($upload_dir['basedir'] . '/.wai_safe', '1');
                 $tasks[$task_id]['running_conversation_id'] = $conversation_id;
                 $tasks[$task_id]['running_action'] = 'broken_site';
                 $tasks[$task_id]['is_running'] = false; // Yield to next cron
                 $tasks[$task_id]['last_log'] = ($tasks[$task_id]['last_log'] ?? '') . "\n[" . current_time('mysql') . "] CRITICAL ERROR: The background task finished, but the website is now returning a 500 Error! Forcing an autonomous recovery iteration in Safe Mode.";
             } else {
-                @unlink(ABSPATH . '.wai_safe');
+                $upload_dir = wp_upload_dir();
+                @wp_delete_file($upload_dir['basedir'] . '/.wai_safe');
                 // Task finished completely and site is healthy
                 unset($tasks[$task_id]['running_conversation_id']);
                 unset($tasks[$task_id]['running_action']);

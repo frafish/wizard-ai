@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Editor\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait InlinePrompt {
     public function register_inline_prompt_hooks() {
         add_action('init', [$this, 'register_inline_prompt_block']);

@@ -1,5 +1,14 @@
 <?php
 namespace WizardAi\Modules\Chatbot\Traits;
+if ( ! defined( 'ABSPATH' ) ) exit;
+// phpcs:disable WordPress.Security.ValidatedSanitizedInput
+// phpcs:disable WordPress.DB.DirectDatabaseQuery
+// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+// phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_error_log
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+
+
 
 trait Chat {
     public function handle_chatbot_request(\WP_REST_Request $request) {
@@ -38,17 +47,50 @@ trait Chat {
         }
         
         // Intercept form data sent by the email hint
+        $info_updated = false;
         if (preg_match('/^My name is (.*?) and my email is (.*?)$/', $prompt, $matches)) {
             $stored_name = trim($matches[1]);
             $stored_email = trim($matches[2]);
             set_transient($chat_id . '_name', $stored_name, 12 * HOUR_IN_SECONDS);
             set_transient($chat_id . '_email', $stored_email, 12 * HOUR_IN_SECONDS);
+            $info_updated = true;
         } else if (preg_match('/^My email is (.*?)$/', $prompt, $matches)) {
             $stored_email = trim($matches[1]);
             set_transient($chat_id . '_email', $stored_email, 12 * HOUR_IN_SECONDS);
+            $info_updated = true;
         } else if (preg_match('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $prompt, $matches)) {
-            $stored_email = trim($matches[0]);
-            set_transient($chat_id . '_email', $stored_email, 12 * HOUR_IN_SECONDS);
+            if (empty($stored_email)) {
+                $stored_email = trim($matches[0]);
+                set_transient($chat_id . '_email', $stored_email, 12 * HOUR_IN_SECONDS);
+                $info_updated = true;
+            }
+        }
+        
+        if ($info_updated) {
+            global $wpdb;
+            $op_like = 'Operator%';
+            $comment_ids = $wpdb->get_col($wpdb->prepare("
+                SELECT c.comment_ID FROM {$wpdb->comments} c
+                INNER JOIN {$wpdb->commentmeta} m ON c.comment_ID = m.comment_id
+                WHERE m.meta_key = 'wai_session_id' AND m.meta_value = %s 
+                AND c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s
+            ", $session_id, $op_like));
+            
+            if (!empty($comment_ids)) {
+                $update_data = [];
+                if (!empty($stored_name) && $stored_name !== 'Visitor') {
+                    $update_data['comment_author'] = $stored_name;
+                }
+                if (!empty($stored_email)) {
+                    $update_data['comment_author_email'] = $stored_email;
+                }
+                if (!empty($update_data)) {
+                    foreach ($comment_ids as $cid) {
+                        $wpdb->update($wpdb->comments, $update_data, ['comment_ID' => $cid]);
+                        clean_comment_cache($cid);
+                    }
+                }
+            }
         }
         
         $author_name = $user_id ? $current_user->display_name : $stored_name;
@@ -232,11 +274,15 @@ trait Chat {
             $notify_email = get_option('wai_chatbot_notify_email', get_option('admin_email'));
             if (!empty($notify_email)) {
                 $subject = __('New Chatbot Session Started', 'wizard-ai');
+                /* translators: %s: Site name */
                 $message_body = sprintf(__('A new chatbot session has been started on your website %s.', 'wizard-ai'), get_bloginfo('name')) . "\n\n";
+                /* translators: %s: Session ID */
                 $message_body .= sprintf(__('Session ID: %s', 'wizard-ai'), $session_id) . "\n\n";
                 
                 $log_url = admin_url('admin.php?page=wizard-ai-chatbot-logs&action=view&session_id=' . urlencode($session_id));
+                /* translators: %s: Log URL */
                 $message_body .= sprintf(__('You can view the conversation and optionally take over here: %s', 'wizard-ai'), $log_url) . "\n\n";
+                /* translators: %s: User message */
                 $message_body .= sprintf(__('User Message: %s', 'wizard-ai'), $prompt);
                 
                 wp_mail($notify_email, $subject, $message_body);
@@ -716,7 +762,7 @@ trait Chat {
                                                         'title' => $p->post_title,
                                                         'type' => $p->post_type,
                                                         'url' => get_permalink($p->ID),
-                                                        'snippet' => wp_trim_words(strip_shortcodes(strip_tags($p->post_content)), 100)
+                                                        'snippet' => wp_trim_words(strip_shortcodes(wp_strip_all_tags($p->post_content)), 100)
                                                     ];
                                                 }
                                                 break; // Found results!
@@ -950,24 +996,32 @@ trait Chat {
         
         foreach ($comments as $c) {
             $role = 'ai';
+            $author = $c->comment_author;
+            
             if ($c->comment_author !== 'Wizard AI' && strpos($c->comment_author, 'Agent') === false) {
                 // Determine if it's the user or the admin
-                // Let's check if the user is an admin based on user_id, or we just say if it's not the stored name, it's admin.
-                // For simplicity, we just pass it as 'ai' so the frontend formats it as a response, 
-                // but we can distinguish admin takeover.
                 $chat_id = "wai_chatbot_" . $session_id;
                 $stored_email = get_transient($chat_id . '_email');
                 if ($c->comment_author_email !== $stored_email && user_can($c->user_id, 'manage_options')) {
                     $role = 'ai'; // operator
                 } else {
-                    $role = 'user'; // We don't need to return user messages as the frontend already has them, but let's do it if another tab opened it.
+                    $role = 'user';
+                    if ($author === 'Visitor') {
+                        $author = 'You';
+                    }
                 }
+            } else {
+                $author = get_option('wai_chatbot_name', 'AI Bot');
+                if (empty($author)) {
+                    $author = 'AI Bot';
+                }
+                $author = apply_filters('wpml_translate_single_string', $author, 'wizard-ai', 'chatbot_name');
             }
             
             $messages[] = [
                 'text' => wp_kses_post($c->comment_content),
                 'role' => $role,
-                'author' => esc_html($c->comment_author),
+                'author' => esc_html($author),
                 'date_gmt' => $c->comment_date_gmt
             ];
         }
@@ -978,6 +1032,42 @@ trait Chat {
             'success' => true,
             'messages' => $messages,
             'manual_mode' => $manual_mode
+        ]);
+    }
+
+    public function handle_chatbot_check_new_activity(\WP_REST_Request $request) {
+        $last_check = sanitize_text_field($request->get_param('last_check'));
+        $session_id = sanitize_text_field($request->get_param('session_id'));
+        
+        if (empty($last_check)) {
+            return new \WP_Error('invalid_params', 'Missing last_check', ['status' => 400]);
+        }
+        
+        global $wpdb;
+        
+        if (!empty($session_id)) {
+            $query = $wpdb->prepare("
+                SELECT COUNT(c.comment_ID) 
+                FROM {$wpdb->comments} c
+                INNER JOIN {$wpdb->commentmeta} m ON c.comment_ID = m.comment_id
+                WHERE c.comment_type = 'wai_chat' 
+                AND c.comment_date_gmt > %s
+                AND m.meta_key = 'wai_session_id' 
+                AND m.meta_value = %s
+            ", $last_check, $session_id);
+        } else {
+            $query = $wpdb->prepare("
+                SELECT COUNT(comment_ID) 
+                FROM {$wpdb->comments} 
+                WHERE comment_type = 'wai_chat' AND comment_date_gmt > %s
+            ", $last_check);
+        }
+        
+        $count = $wpdb->get_var($query);
+        
+        return rest_ensure_response([
+            'success' => true,
+            'has_new' => $count > 0
         ]);
     }
 

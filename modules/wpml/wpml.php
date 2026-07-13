@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Wpml;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Wpml {
     use traits\Contents;
     use traits\Strings;
@@ -64,14 +64,16 @@ class Wpml {
     }
 
     public function render_wpml_bulk_page() {
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing
         if (isset($_POST['wai_wpml_settings_nonce'])) {
             $this->handle_settings_post();
         }
 
-        $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'translate';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $active_tab = isset($_GET['tab']) ? sanitize_text_field(wp_unslash($_GET['tab'])) : 'translate';
         $has_strings = method_exists($this, 'wai_wpml_has_strings') && $this->wai_wpml_has_strings();
         
-        wp_enqueue_style('wpml-dashboard', plugins_url('sitepress-multilingual-cms/vendor/wpml/wpml/public/css/dashboard.css'), [], null);
+        wp_enqueue_style('wpml-dashboard', plugins_url('sitepress-multilingual-cms/vendor/wpml/wpml/public/css/dashboard.css'), [], '1.0.0');
         ?>
         <div class="wrap" id="wpml-dashboard">
             <h1 style="margin-bottom: 16px;"><?php esc_html_e('Wizard AI Translation Dashboard', 'wizard-ai'); ?></h1>

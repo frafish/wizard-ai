@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Seo\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Hooks {
     public function add_seo_media_button($form_fields, $post) {
         if (strpos($post->post_mime_type, 'image/') === 0) {

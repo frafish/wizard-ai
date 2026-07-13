@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Markdown\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Yoast {
     public function start_yoast_llms_rewrite() {
         if ($this->is_yoast_generating) return;

@@ -6,6 +6,8 @@
  * Author: frapesce
  * Text Domain: wizard-ai
  * Requires at least: 7.0
+ * License: GPLv3 or later
+ * License URI: https://www.gnu.org/licenses/gpl-3.0.html
  */
 
 if (!defined('ABSPATH')) {
@@ -17,7 +19,6 @@ define('WIZARD_AI_URL', plugins_url(DIRECTORY_SEPARATOR, __FILE__));
 define('WIZARD_AI_PATH', str_replace('/', DIRECTORY_SEPARATOR, plugin_dir_path(__FILE__)));
 
 add_action('plugins_loaded', function() {
-    load_plugin_textdomain('wizard-ai');
 
     if (file_exists(WIZARD_AI_PATH . 'vendor/autoload.php')) {
         require_once WIZARD_AI_PATH . 'vendor/autoload.php';
@@ -39,6 +40,7 @@ add_action('plugins_loaded', function() {
     });
     
     \WizardAi\Modules\Ai\Ai::instance();
+    new \WizardAi\Modules\Providers\Providers();
     \WizardAi\Modules\Playground\Playground::instance();
     new \WizardAi\Modules\Editor\Editor();
     new \WizardAi\Modules\Block\Block();
@@ -50,13 +52,9 @@ add_action('plugins_loaded', function() {
 
 });
 
-
-// Add Settings Link on Plugin Page
-add_filter('plugin_action_links_' . plugin_basename(WIZARD_AI_FILE), 'wizard_ai_plugin_action_links');
-function wizard_ai_plugin_action_links($links) {
-    if (current_user_can('manage_options')) {
-        $settings_url = admin_url('admin.php?page=wizard-ai');
-        $links[] = '<a href="' . esc_url($settings_url) . '" style="color:#2271b1;font-weight:600;">' . esc_html__('Settings', 'wizard-ai') . '</a>';
+register_deactivation_hook(WIZARD_AI_FILE, 'wizard_ai_deactivate');
+function wizard_ai_deactivate() {
+    if (class_exists('\WizardAi\Modules\Playground\Playground')) {
+        \WizardAi\Modules\Playground\Playground::instance()->disable_safe_mode();
     }
-    return $links;
 }

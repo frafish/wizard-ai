@@ -1,5 +1,10 @@
 <?php
 namespace WizardAi\Modules\Chatbot\Traits;
+if ( ! defined( 'ABSPATH' ) ) exit;
+// phpcs:disable WordPress.Security.NonceVerification.Recommended
+// phpcs:disable WordPress.Security.ValidatedSanitizedInput
+
+
 
 trait Ui {
     public function enqueue_chatbot_scripts() {
@@ -24,12 +29,23 @@ trait Ui {
             $post_id = !empty($fallback) ? $fallback[0]->ID : 0;
         }
 
+        $chatbot_name = get_option('wai_chatbot_name', 'AI Bot');
+        if (empty($chatbot_name)) {
+            $chatbot_name = 'AI Bot';
+        }
+        $chatbot_name = apply_filters('wpml_translate_single_string', $chatbot_name, 'wizard-ai', 'chatbot_name');
+        
+        $current_user = wp_get_current_user();
+        $user_name = $current_user->exists() ? $current_user->display_name : '';
+
         wp_localize_script('wizard-ai-chatbot-script', 'wizardAiChatbotData', [
             'rest_url' => esc_url_raw(rest_url('wizard-ai/v1/chatbot')),
             'nonce' => wp_create_nonce('wp_rest'),
             'debugMode' => (defined('WP_DEBUG') && WP_DEBUG),
             'resetConfirm' => __('Are you sure you want to start a new chat?', 'wizard-ai'),
-            'post_id' => $post_id
+            'post_id' => $post_id,
+            'chatbotName' => esc_html($chatbot_name),
+            'userName' => esc_html($user_name)
         ]);
     }
 
@@ -60,18 +76,18 @@ trait Ui {
             #wai-chatbot-header, #wai-chatbot-send, #wai-chatbot-email-submit { background-color: <?php echo esc_attr($color); ?> !important; }
             .wai-privacy-link { color: <?php echo esc_attr($color); ?> !important; }
         </style>
-        <div id="wai-chatbot" class="wai-chatbot-closed <?php echo $pos_class; ?>" data-live-mode="1">
+        <div id="wai-chatbot" class="wai-chatbot-closed <?php echo esc_attr($pos_class); ?>" data-live-mode="1">
             <div id="wai-chatbot-header">
-                <span class="dashicons <?php echo $icon; ?>"></span>
+                <span class="dashicons <?php echo esc_attr($icon); ?>"></span>
                 <?php if (!empty($chatbot_name)): ?>
-                    <span class="wai-chatbot-title-text"><?php echo $chatbot_name; ?></span>
+                    <span class="wai-chatbot-title-text"><?php echo esc_html($chatbot_name); ?></span>
                 <?php endif; ?>
                 <button id="wai-chatbot-reset" title="<?php esc_attr_e('Reset Chat', 'wizard-ai'); ?>"><span class="dashicons dashicons-update-alt"></span></button>
                 <button id="wai-chatbot-toggle"><span class="dashicons dashicons-arrow-up-alt2"></span></button>
             </div>
             <div id="wai-chatbot-body">
                 <div id="wai-chatbot-messages">
-                    <div class="wai-chatbot-msg wai-chatbot-sys"><?php echo $greeting; ?></div>
+                    <div class="wai-chatbot-msg wai-chatbot-sys"><?php echo wp_kses_post($greeting); ?></div>
                 </div>
                 <?php 
                 $contact_msg = get_option('wai_chatbot_contact_msg', '');

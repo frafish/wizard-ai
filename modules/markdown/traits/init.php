@@ -1,9 +1,8 @@
 <?php
 namespace WizardAi\Modules\Markdown\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Init {
     public function register_markdown_hooks() {
-        add_action('admin_menu', [$this, 'add_markdown_menu']);
         if (get_option('wbai_markdown_enabled', '1') !== '1') return;
 
         add_action('init', [$this, 'add_markdown_rewrite_rules']);
@@ -79,16 +78,5 @@ trait Init {
                 }
             }
         }
-    }
-    
-    public function add_markdown_menu() {
-        add_submenu_page(
-            'wizard-ai',
-            __('Markdown', 'wizard-ai'),
-            __('Markdown', 'wizard-ai'),
-            'manage_options',
-            'wizard-ai-markdown',
-            [$this, 'wb_ai_markdown_page_html']
-        );
     }
 }

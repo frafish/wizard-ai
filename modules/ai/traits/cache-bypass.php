@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait CacheBypass {
 
     public function register_cache_bypass_hooks() {

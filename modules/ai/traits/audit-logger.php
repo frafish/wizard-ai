@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait AuditLogger {
     private $audit_db = null;
 

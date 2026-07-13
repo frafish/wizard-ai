@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Markdown\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Settings {
     public function wb_ai_markdown_page_html() {
         if (!current_user_can('manage_options')) return;

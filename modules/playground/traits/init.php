@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Playground\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Init {
     public function register_playground_hooks() {
 

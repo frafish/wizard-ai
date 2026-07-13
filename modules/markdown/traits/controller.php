@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Markdown\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Controller {
     public function inject_markdown_alternate_link() {
         if (!is_singular() || get_query_var('wai_md')) return;

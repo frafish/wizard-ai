@@ -1,5 +1,10 @@
 <?php
 namespace WizardAi\Modules\Wpml\traits;
+if ( ! defined( 'ABSPATH' ) ) exit;
+// phpcs:disable WordPress.DB.DirectDatabaseQuery
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+
+
 
 trait Strings {
     public function render_strings_tab() {
@@ -125,7 +130,7 @@ trait Strings {
                     url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-strings-get-missing')); ?>',
                     method: 'GET',
                     data: { domain: domain, target_lang: lang },
-                    beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>'); },
+                    beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>'); },
                     success: function(res) {
                         btn.prop('disabled', false).text('Filter Strings');
                         if (res.success) {
@@ -219,7 +224,7 @@ trait Strings {
                     url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-strings-translate')); ?>',
                     method: 'POST',
                     data: { string_id: item.id, target_lang: currentStringLang },
-                    beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>'); },
+                    beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>'); },
                     success: function(res) {
                         if (res.success) {
                             $('#wai_missing_strings_list').find('input[value="'+item.id+'"]').closest('div').css('opacity', '0.5').find('.dashicons').removeClass('dashicons-plus').addClass('dashicons-yes-alt').css('color', '#46b450');
@@ -248,7 +253,8 @@ trait Strings {
             return new \WP_REST_Response(['success' => false, 'message' => 'Missing domain or target_lang parameters'], 400);
         }
         
-        $sql = $wpdb->prepare("
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+        $results = $wpdb->get_results($wpdb->prepare("
             SELECT s.id, s.name, s.value 
             FROM {$wpdb->prefix}icl_strings s
             LEFT JOIN {$wpdb->prefix}icl_string_translations st 
@@ -257,9 +263,7 @@ trait Strings {
               AND s.language != %s
               AND (st.id IS NULL OR st.status != 10)
             ORDER BY s.id DESC LIMIT 500
-        ", $target_lang, $domain, $target_lang);
-        
-        $results = $wpdb->get_results($sql);
+        ", $target_lang, $domain, $target_lang));
         
         $items = [];
         foreach ($results as $r) {

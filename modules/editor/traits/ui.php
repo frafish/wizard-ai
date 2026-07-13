@@ -1,5 +1,10 @@
 <?php
 namespace WizardAi\Modules\Editor\Traits;
+if ( ! defined( 'ABSPATH' ) ) exit;
+// phpcs:disable WordPress.Security.NonceVerification.Recommended
+// phpcs:disable WordPress.Security.ValidatedSanitizedInput
+
+
 
 trait Ui {
     public function enqueue_agent_scripts_elementor() {

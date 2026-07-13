@@ -1,22 +1,22 @@
 <?php
 namespace WizardAi\Modules\Wpml\traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Settings {
     public function handle_settings_post() {
-        if (isset($_POST['wai_wpml_settings_nonce']) && wp_verify_nonce($_POST['wai_wpml_settings_nonce'], 'wai_wpml_settings')) {
+        if (isset($_POST['wai_wpml_settings_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['wai_wpml_settings_nonce'])), 'wai_wpml_settings')) {
             if (isset($_POST['wai_clear_logs'])) {
                 $upload_dir = wp_upload_dir();
                 $log_file = $upload_dir['basedir'] . '/wai/logs/wpml.log';
                 if (file_exists($log_file)) {
-                    unlink($log_file);
+                    wp_delete_file($log_file);
                 }
                 echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Logs cleared.', 'wizard-ai') . '</p></div>';
             } else {
-                update_option('wai_wpml_model', sanitize_text_field($_POST['wai_wpml_model']));
+                update_option('wai_wpml_model', sanitize_text_field(wp_unslash($_POST['wai_wpml_model'])));
                 update_option('wai_wpml_auto_fallback', isset($_POST['wai_wpml_auto_fallback']) ? 1 : 0);
                 
                 $fallback_models = isset($_POST['wai_wpml_fallback_models']) && is_array($_POST['wai_wpml_fallback_models']) 
-                    ? array_map('sanitize_text_field', $_POST['wai_wpml_fallback_models']) : [];
+                    ? array_map('sanitize_text_field', wp_unslash($_POST['wai_wpml_fallback_models'])) : [];
                 update_option('wai_wpml_fallback_models', $fallback_models);
                 
                 echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Settings saved.', 'wizard-ai') . '</p></div>';

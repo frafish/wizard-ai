@@ -1,6 +1,5 @@
 <?php
 namespace WizardAi\Modules\Ai\Classes;
-
 if (!defined('ABSPATH')) {
     exit;
 }

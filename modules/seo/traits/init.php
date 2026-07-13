@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Seo\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Init {
     public function register_seo_hooks() {
         add_action('admin_menu', [$this, 'add_seo_menu']);
@@ -22,6 +22,16 @@ trait Init {
                 'callback' => [$this, 'api_save_seo_settings'],
                 'permission_callback' => function () { return current_user_can('manage_options'); }
             ]);
+            register_rest_route('wizard-ai/v1', '/content-seo-list', [
+                'methods' => 'GET',
+                'callback' => [$this, 'api_content_seo_list'],
+                'permission_callback' => function () { return current_user_can('edit_posts'); }
+            ]);
+            register_rest_route('wizard-ai/v1', '/optimize-content-seo', [
+                'methods' => 'POST',
+                'callback' => [$this, 'api_optimize_content_seo'],
+                'permission_callback' => function () { return current_user_can('edit_posts'); }
+            ]);
         });
 
         // Cron hooks
@@ -34,8 +44,8 @@ trait Init {
     public function add_seo_menu() {
         add_submenu_page(
             'wizard-ai',
-            __('Media SEO', 'wizard-ai'),
-            __('Media SEO', 'wizard-ai'),
+            __('SEO', 'wizard-ai'),
+            __('SEO', 'wizard-ai'),
             'manage_options',
             'wizard-ai-seo',
             [$this, 'wb_ai_seo_page_html']

@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Editor;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Editor {
     use Traits\Init;
     use Traits\Ui;

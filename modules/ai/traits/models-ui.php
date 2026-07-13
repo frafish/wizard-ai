@@ -1,10 +1,10 @@
 <?php
 namespace WizardAi\Modules\Ai\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait ModelsUi {
     public function wb_ai_models_page_html() {
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have sufficient permissions to access this page.'));
+            wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'wizard-ai'));
         }
         
         $enabled_models = get_option('wbai_enabled_models', []);
@@ -103,6 +103,16 @@ trait ModelsUi {
                         'is_enabled' => empty($enabled_models) || in_array($uid, $enabled_models)
                     ];
                 }
+            }
+        }
+        
+        $models_data = apply_filters('wizard_ai/models', $models_data);
+        
+        foreach ($models_data as $m) {
+            if (!in_array($m['provider'], $providers)) $providers[] = $m['provider'];
+            if (!in_array($m['family'], $families)) $families[] = $m['family'];
+            foreach ($m['capabilities'] as $cap) {
+                if (!in_array($cap, $all_capabilities)) $all_capabilities[] = $cap;
             }
         }
         

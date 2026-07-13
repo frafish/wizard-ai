@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Block;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Block {
     public function __construct() {
         add_action('rest_api_init', [$this, 'register_block_routes']);
@@ -63,6 +63,7 @@ class Block {
             ];
 
             $abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
+            $abilities = apply_filters('wizard_ai/abilities', $abilities);
             $abilities = apply_filters('wizard_blocks_ai_abilities', $abilities);
             $functions = [];
             $resolver = null;

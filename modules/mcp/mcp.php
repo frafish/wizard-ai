@@ -1,12 +1,18 @@
 <?php
 namespace WizardAi\Modules\Mcp;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Mcp {
+    use Traits\McpOauth;
+
     public function __construct() {
         if (method_exists($this, 'register_mcp_hooks')) {
             $this->register_mcp_hooks();
         } elseif (method_exists($this, 'register_mcp_routes')) {
             $this->register_mcp_hooks();
+        }
+        
+        if (method_exists($this, 'init_mcp_oauth')) {
+            $this->init_mcp_oauth();
         }
     }
 
@@ -100,6 +106,7 @@ class Mcp {
         $responses = [];
 
         $wai_abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
+        $wai_abilities = apply_filters('wizard_ai/abilities', $wai_abilities);
 
         foreach ($requests as $req) {
             $id = isset($req['id']) ? $req['id'] : null;
@@ -166,6 +173,7 @@ class Mcp {
 
     public function generate_openapi_schema(\WP_REST_Request $request) {
         $wai_abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
+        $wai_abilities = apply_filters('wizard_ai/abilities', $wai_abilities);
 
         $site_url = get_site_url();
         $schema = [
@@ -275,9 +283,9 @@ class Mcp {
     }
 
     public function wb_ai_mcp_page_html() {
-        if (isset($_POST['wai_mcp_settings_nonce']) && wp_verify_nonce($_POST['wai_mcp_settings_nonce'], 'wai_mcp_settings')) {
-            update_option('wai_mcp_token', sanitize_text_field($_POST['wai_mcp_token']));
-            echo '<div class="updated"><p>' . __('MCP Settings saved.', 'wizard-ai') . '</p></div>';
+        if (isset($_POST['wai_mcp_settings_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['wai_mcp_settings_nonce'])), 'wai_mcp_settings')) {
+            update_option('wai_mcp_token', sanitize_text_field(wp_unslash($_POST['wai_mcp_token'])));
+            echo '<div class="updated"><p>' . esc_html__('MCP Settings saved.', 'wizard-ai') . '</p></div>';
         }
 
         $token = get_option('wai_mcp_token', wp_generate_password(24, false));
@@ -433,8 +441,10 @@ class Mcp {
                 <?php
                 global $wpdb;
                 $clients_table = $wpdb->prefix . 'wizard_ai_oauth_clients';
-                if ($wpdb->get_var("SHOW TABLES LIKE '{$clients_table}'") === $clients_table) {
-                    $apps = $wpdb->get_results("SELECT * FROM {$clients_table} ORDER BY created DESC");
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+                if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $clients_table)) === $clients_table) {
+                    // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                    $apps = $wpdb->get_results("SELECT * FROM `{$clients_table}` ORDER BY created DESC");
                     if (empty($apps)) {
                         echo '<p>' . esc_html__('No applications have connected via OAuth yet.', 'wizard-ai') . '</p>';
                     } else {
@@ -486,7 +496,7 @@ class Mcp {
                         echo '<tr>';
                         echo '<td>' . esc_html($log->comment_date) . '</td>';
                         echo '<td><strong>' . esc_html($log->comment_author) . '</strong></td>';
-                        echo '<td>' . $post_link . '</td>';
+                        echo '<td>' . wp_kses_post($post_link) . '</td>';
                         echo '<td>' . wp_kses_post($log->comment_content) . '</td>';
                         echo '<td><a href="' . esc_url($delete_url) . '" class="delete" style="color: #d63638;">' . esc_html__('Delete', 'wizard-ai') . '</a></td>';
                         echo '</tr>';

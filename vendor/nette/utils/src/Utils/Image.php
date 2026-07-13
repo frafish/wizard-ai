@@ -751,7 +751,7 @@ class Image
 
 		Callback::invokeSafe('image' . self::Formats[$type], $args, function (string $message) use ($file): void {
 			if ($file !== null) {
-				@unlink($file);
+				@wp_delete_file($file);
 			}
 			throw new ImageException($message);
 		});

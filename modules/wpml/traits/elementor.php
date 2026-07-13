@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Wpml\traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Elementor {
     public function is_elementor_post($post_id) {
         return get_post_meta($post_id, '_elementor_edit_mode', true) === 'builder';

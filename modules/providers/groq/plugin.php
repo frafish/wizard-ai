@@ -1,5 +1,6 @@
 <?php
-
+declare(strict_types=1);
+namespace WordPress\GroqAiProvider;
 /**
  * Plugin Name: AI Provider for Groq
  * Plugin URI: https://github.com/WordPress/ai-provider-for-groq
@@ -16,9 +17,9 @@
  * @package WordPress\GroqAiProvider
  */
 
-declare(strict_types=1);
 
-namespace WordPress\GroqAiProvider;
+
+
 
 use WordPress\AiClient\AiClient;
 use WordPress\GroqAiProvider\Provider\GroqProvider;

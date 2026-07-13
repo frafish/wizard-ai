@@ -1,10 +1,12 @@
 <?php
 
+namespace WizardAi\Modules\Ai\Traits;
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-trait WizardAI_RAG_Embeddings {
+trait RAG_Embeddings {
 
     private function insert_chunks($object_id, $object_type, $title, $url, $content, $content_hash) {
         $chunks = $this->chunk_text($content, $this->chunk_size);

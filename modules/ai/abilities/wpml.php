@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Abilities;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Wpml {
     public function register_wpml_abilities() {
         if (defined('ICL_SITEPRESS_VERSION')) {

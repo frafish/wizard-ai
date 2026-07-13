@@ -1,5 +1,5 @@
 <?php
-
+declare(strict_types=1);
 /**
  * PSR-4 autoloader for the AI Provider for Cohere package.
  *
@@ -8,7 +8,9 @@
  * @package WordPress\CohereAiProvider
  */
 
-declare(strict_types=1);
+
+if (!defined('ABSPATH')) { exit; }
+
 
 spl_autoload_register(static function (string $class): void {
     $prefix = 'WordPress\\CohereAiProvider\\';

@@ -1,5 +1,6 @@
 <?php
-
+declare(strict_types=1);
+namespace WordPress\HuggingFaceAiProvider;
 /**
  * Plugin Name: AI Provider for HuggingFace
  * Plugin URI: https://github.com/WordPress/ai-provider-for-huggingface
@@ -16,9 +17,9 @@
  * @package WordPress\HuggingFaceAiProvider
  */
 
-declare(strict_types=1);
 
-namespace WordPress\HuggingFaceAiProvider;
+
+
 
 use WordPress\AiClient\AiClient;
 use WordPress\HuggingFaceAiProvider\Provider\HuggingFaceProvider;

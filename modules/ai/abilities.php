@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Abilities {
 
     public function __construct() {

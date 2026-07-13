@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Markdown\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait LlmsTxt {
     public function register_llmstxt_hooks() {
         if (get_option('wbai_markdown_enabled', '1') !== '1') return;

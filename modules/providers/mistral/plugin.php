@@ -1,5 +1,6 @@
 <?php
-
+declare(strict_types=1);
+namespace WordPress\MistralAiProvider;
 /**
  * Plugin Name: AI Provider for Mistral
  * Plugin URI: https://github.com/WordPress/ai-provider-for-mistral
@@ -16,9 +17,9 @@
  * @package WordPress\MistralAiProvider
  */
 
-declare(strict_types=1);
 
-namespace WordPress\MistralAiProvider;
+
+
 
 use WordPress\AiClient\AiClient;
 use WordPress\MistralAiProvider\Provider\MistralProvider;

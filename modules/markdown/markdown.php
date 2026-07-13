@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Markdown;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Markdown {
     use Traits\Init;
     use Traits\Controller;

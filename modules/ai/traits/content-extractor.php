@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait ContentExtractor {
 
     public function extract_post_content($post_id) {

@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Chatbot\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Init {
     public function register_chatbot_hooks() {
         add_action('wp_enqueue_scripts', [$this, 'enqueue_chatbot_scripts']);
@@ -53,6 +53,14 @@ trait Init {
         register_rest_route('wizard-ai/v1', '/chatbot/operator-send', [
             'methods' => 'POST',
             'callback' => [$this, 'handle_chatbot_operator_send'],
+            'permission_callback' => function() {
+                return current_user_can('manage_options');
+            }
+        ]);
+        
+        register_rest_route('wizard-ai/v1', '/chatbot/check-new-activity', [
+            'methods' => 'POST',
+            'callback' => [$this, 'handle_chatbot_check_new_activity'],
             'permission_callback' => function() {
                 return current_user_can('manage_options');
             }

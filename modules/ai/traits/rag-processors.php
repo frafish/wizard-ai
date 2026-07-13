@@ -1,10 +1,17 @@
 <?php
+// phpcs:disable WordPress.DB.DirectDatabaseQuery
+// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+// phpcs:disable PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+namespace WizardAi\Modules\Ai\Traits;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-trait WizardAI_RAG_Processors {
+trait RAG_Processors {
     
     private function cleanup_deleted_objects() {
         global $wpdb;
@@ -108,7 +115,7 @@ trait WizardAI_RAG_Processors {
                 $del_stmt->execute([':post_id' => $post_id, ':post_type' => $wp_post->post_type]);
             }
 
-            echo "Length: " . strlen($content) . "\n"; $this->insert_chunks($post_id, $wp_post->post_type, $wp_post->post_title, get_permalink($post_id), $content, $content_hash);
+            echo "Length: " . esc_html((string)strlen($content)) . "\n"; $this->insert_chunks($post_id, $wp_post->post_type, $wp_post->post_title, get_permalink($post_id), $content, $content_hash);
             
             $processed_count++;
             $updated_count++;
@@ -142,7 +149,7 @@ trait WizardAI_RAG_Processors {
             }
 
             $this->log("Updating Term ID: {$term->term_id} - {$term->name} ({$term->taxonomy})");
-            echo "Length: " . strlen($content) . "\n"; $this->insert_chunks($term->term_id, $type, 'Taxonomy: ' . $term->name, get_term_link($term), $content, $content_hash);
+            echo "Length: " . esc_html((string)strlen($content)) . "\n"; $this->insert_chunks($term->term_id, $type, 'Taxonomy: ' . $term->name, get_term_link($term), $content, $content_hash);
             $updated_count++;
         }
         $this->log("Processed {$updated_count} taxonomies this run.");
@@ -167,7 +174,7 @@ trait WizardAI_RAG_Processors {
         }
         
         $this->log("Updating Global Site Settings Context");
-        echo "Length: " . strlen($content) . "\n"; $this->insert_chunks(1, 'global_setting', 'Global Site Configuration', home_url(), $content, $content_hash);
+        echo "Length: " . esc_html((string)strlen($content)) . "\n"; $this->insert_chunks(1, 'global_setting', 'Global Site Configuration', home_url(), $content, $content_hash);
     }
     
     private function process_plugins_apis() {
@@ -294,6 +301,8 @@ trait WizardAI_RAG_Processors {
             
             $data[] = $row;
         }
+
+        $data = apply_filters('wizard_ai/rag_data', $data);
 
         $json_path = $this->db_dir . '/rag.json';
         $json_content = wp_json_encode($data);

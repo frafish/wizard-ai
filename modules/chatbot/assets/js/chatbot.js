@@ -39,6 +39,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 const div = document.createElement('div');
                 div.className = 'wai-chatbot-msg wai-chatbot-' + msg.role;
                 
+                const authorDiv = document.createElement('div');
+                authorDiv.className = 'wai-chatbot-author';
+                let authorName = '';
+                if (msg.role === 'ai') {
+                    authorName = msg.author || wizardAiChatbotData.chatbotName || 'AI Bot';
+                } else if (msg.role === 'sys') {
+                    authorName = 'System';
+                } else {
+                    let localUserName = localStorage.getItem('wai_chatbot_user_name');
+                    if (msg.author && msg.author !== 'You' && msg.author !== 'Visitor') {
+                        authorName = msg.author;
+                    } else {
+                        authorName = localUserName || wizardAiChatbotData.userName || 'You';
+                    }
+                }
+                authorDiv.innerText = authorName;
+                div.appendChild(authorDiv);
+
                 const contentDiv = document.createElement('div');
                 contentDiv.className = 'wai-msg-content';
                 
@@ -210,6 +228,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const nameVal = nameInput ? nameInput.value.trim() : '';
             if (emailVal && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(emailVal)) {
                 if (nameVal) {
+                    localStorage.setItem('wai_chatbot_user_name', nameVal);
                     promptInput.value = "My name is " + nameVal + " and my email is " + emailVal;
                 } else {
                     promptInput.value = "My email is " + emailVal;
@@ -240,10 +259,28 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function addMessage(text, role, save = true) {
+    function addMessage(text, role, save = true, author = null) {
         const div = document.createElement('div');
         div.className = 'wai-chatbot-msg wai-chatbot-' + role;
         
+        const authorDiv = document.createElement('div');
+        authorDiv.className = 'wai-chatbot-author';
+        let authorName = '';
+        if (role === 'ai') {
+            authorName = author || wizardAiChatbotData.chatbotName || 'AI Bot';
+        } else if (role === 'sys') {
+            authorName = 'System';
+        } else {
+            let localUserName = localStorage.getItem('wai_chatbot_user_name');
+            if (author && author !== 'You' && author !== 'Visitor') {
+                authorName = author;
+            } else {
+                authorName = localUserName || wizardAiChatbotData.userName || 'You';
+            }
+        }
+        authorDiv.innerText = authorName;
+        div.appendChild(authorDiv);
+
         const contentDiv = document.createElement('div');
         contentDiv.className = 'wai-msg-content';
         
@@ -270,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
         messagesArea.scrollTop = messagesArea.scrollHeight;
         
         if (save) {
-            chatHistory.push({ text: text, role: role });
+            chatHistory.push({ text: text, role: role, author: authorName });
             localStorage.setItem('wai_chatbot_history', JSON.stringify(chatHistory));
         }
         
@@ -559,7 +596,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                             chatHistory[chatHistory.length - 1].text === msg.text;
                                             
                         if (!isDuplicate) {
-                            addMessage(msg.text, msg.role);
+                            addMessage(msg.text, msg.role, true, msg.author);
                             if (msg.role === 'ai') {
                                 const hint = document.getElementById('wai-chatbot-email-hint');
                                 if (hint) {

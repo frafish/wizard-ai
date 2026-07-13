@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Skills {
 
     public function register_skills_hooks() {
@@ -67,6 +67,9 @@ trait Skills {
                 ];
             }
         }
+        
+        $skills = apply_filters('wizard_ai/skills', $skills);
+        
         return new \WP_REST_Response(['success' => true, 'skills' => $skills], 200);
     }
 
@@ -93,7 +96,7 @@ trait Skills {
         if (!empty($old_id) && $old_id !== $id) {
             $old_path = $dir . '/' . $old_id;
             if (file_exists($old_path)) {
-                unlink($old_path);
+                wp_delete_file($old_path);
             }
         }
 
@@ -119,7 +122,7 @@ trait Skills {
         $path = $dir . '/' . $id;
 
         if (file_exists($path)) {
-            unlink($path);
+            wp_delete_file($path);
             return new \WP_REST_Response(['success' => true, 'message' => __('Skill deleted.', 'wizard-ai')], 200);
         }
 
@@ -183,21 +186,29 @@ trait Skills {
             $has_custom = !empty($files) && count(array_filter($files, function($f) { return basename($f) !== 'README.txt'; })) > 0;
             
             if ($has_custom || method_exists($this, 'get_builtin_skills')) {
-                $skills_text .= "\n\nCUSTOM SKILLS & INSTRUCTIONS:\n";
+                $raw_skills = [];
                 
                 if (method_exists($this, 'get_builtin_skills')) {
-                    $builtins = $this->get_builtin_skills();
-                    foreach ($builtins as $builtin) {
-                        $skills_text .= "--- Skill: " . $builtin['id'] . " ---\n";
-                        $skills_text .= $builtin['content'] . "\n\n";
-                    }
+                    $raw_skills = array_merge($raw_skills, $this->get_builtin_skills());
                 }
                 
                 if (!empty($files)) {
                     foreach ($files as $file) {
                         if (basename($file) === 'README.txt') continue;
-                        $skills_text .= "--- Skill: " . basename($file) . " ---\n";
-                        $skills_text .= file_get_contents($file) . "\n\n";
+                        $raw_skills[] = [
+                            'id' => basename($file),
+                            'content' => file_get_contents($file)
+                        ];
+                    }
+                }
+                
+                $raw_skills = apply_filters('wizard_ai/skills', $raw_skills);
+                
+                if (!empty($raw_skills)) {
+                    $skills_text .= "\n\nCUSTOM SKILLS & INSTRUCTIONS:\n";
+                    foreach ($raw_skills as $skill) {
+                        $skills_text .= "--- Skill: " . $skill['id'] . " ---\n";
+                        $skills_text .= $skill['content'] . "\n\n";
                     }
                 }
             }

@@ -1,6 +1,5 @@
 <?php
 namespace WizardAi\Modules\Playground\Traits;
-
 trait Context {
     private function get_directory_tree($dir, $max_files = 200, &$file_count = 0, $prefix = '') {
         $tree = '';

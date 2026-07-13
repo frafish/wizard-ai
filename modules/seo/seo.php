@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Seo;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Seo {
     use Traits\Init;
     use Traits\Hooks;
@@ -12,12 +12,5 @@ class Seo {
             $this->register_seo_hooks();
         }
 
-        // We are already inside plugins_loaded (from wizard-ai.php)
-        if (!class_exists('WordPress\AI\Main')) {
-            require_once __DIR__ . '/wp-ai/ai.php';
-        }
-
-        add_filter('pre_option_wpai_features_enabled', function($default) { return '1'; });
-        add_filter('wpai_feature_ai-request-logging_enabled', '__return_true');
     }
 }

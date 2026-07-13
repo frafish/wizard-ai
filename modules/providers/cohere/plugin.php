@@ -1,5 +1,6 @@
 <?php
-
+declare(strict_types=1);
+namespace WordPress\CohereAiProvider;
 /**
  * Plugin Name: AI Provider for Cohere
  * Plugin URI: https://github.com/WordPress/ai-provider-for-cohere
@@ -16,9 +17,9 @@
  * @package WordPress\CohereAiProvider
  */
 
-declare(strict_types=1);
 
-namespace WordPress\CohereAiProvider;
+
+
 
 use WordPress\AiClient\AiClient;
 use WordPress\CohereAiProvider\Provider\CohereProvider;

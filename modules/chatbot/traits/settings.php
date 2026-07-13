@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Chatbot\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Settings {
     public function wb_ai_chatbot_page_html() {
         if (isset($_POST['wai_chatbot_settings_nonce']) && wp_verify_nonce($_POST['wai_chatbot_settings_nonce'], 'wai_chatbot_settings')) {
@@ -54,7 +54,7 @@ trait Settings {
             $gdpr_required = isset($_POST['wai_chatbot_gdpr_required']) ? 1 : 0;
             update_option('wai_chatbot_gdpr_required', $gdpr_required);
             
-            echo '<div class="updated"><p>' . __('Settings saved.', 'wizard-ai') . '</p></div>';
+            echo '<div class="updated"><p>' . esc_html__('Settings saved.', 'wizard-ai') . '</p></div>';
         }
 
         $enabled = get_option('wai_chatbot_enabled', 0);
@@ -162,8 +162,8 @@ trait Settings {
                                         <option value="<?php echo esc_attr($val); ?>" <?php echo in_array($val, $saved_fallback_models) ? 'selected' : ''; ?>><?php echo esc_html($label); ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <div style="display: flex; flex-direction: column; gap: 5px;">
-                                    <button type="button" class="button" id="wai_export_btn" title="<?php esc_attr_e('Export Models Configuration', 'wizard-ai'); ?>" style="padding: 0 5px;">
+                                <div style="display: flex; gap: 5px;">
+                                    <button type="button" class="button" id="wai_export_btn" data-export="<?php echo esc_attr($export_json); ?>" title="<?php esc_attr_e('Export Models Configuration', 'wizard-ai'); ?>" style="padding: 0 5px;">
                                         <span class="dashicons dashicons-download" style="margin-top: 4px; height: 20px; width: 20px;"></span>
                                     </button>
                                     <button type="button" class="button" id="wai_import_btn" title="<?php esc_attr_e('Import Models Configuration', 'wizard-ai'); ?>" style="padding: 0 5px;">
@@ -335,7 +335,7 @@ trait Settings {
             <tr>
                         <th scope="row"><?php esc_html_e('Chatbot Name', 'wizard-ai'); ?></th>
                         <td>
-                            <input type="text" name="wai_chatbot_name" value="<?php echo esc_attr($name); ?>" class="regular-text">
+                            <input type="text" name="wai_chatbot_name" value="<?php echo esc_attr($name); ?>" class="regular-text" placeholder="AI Bot">
                         </td>
                     </tr>
                     <tr>
@@ -379,7 +379,7 @@ trait Settings {
 
                 <script>
                 document.getElementById('wai_export_btn').addEventListener('click', function() {
-                    const data = <?php echo $export_json; ?>;
+                    const data = JSON.parse(document.getElementById('wai_export_btn').getAttribute('data-export'));
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -400,7 +400,10 @@ trait Settings {
                             
                             if (config.model) {
                                 const modelSelect = document.querySelector('select[name="wai_chatbot_model"]');
-                                if (modelSelect) modelSelect.value = config.model;
+                                if (modelSelect) {
+                                    modelSelect.value = config.model;
+                                    jQuery(modelSelect).trigger('change');
+                                }
                             }
                             
                             if (config.fallback_models && Array.isArray(config.fallback_models)) {
@@ -409,6 +412,7 @@ trait Settings {
                                     Array.from(fallbackSelect.options).forEach(opt => {
                                         opt.selected = config.fallback_models.includes(opt.value);
                                     });
+                                    jQuery(fallbackSelect).trigger('change');
                                 }
                             }
                             
@@ -423,6 +427,14 @@ trait Settings {
                 </script>
             </form>
         </div>
+        <script>
+        jQuery(document).ready(function($) {
+            if ($.fn.select2) {
+                $('select[name="wai_chatbot_model"]').select2();
+                $('select[name="wai_chatbot_fallback_models[]"]').select2();
+            }
+        });
+        </script>
         <?php
     }
 

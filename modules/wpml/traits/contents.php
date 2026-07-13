@@ -1,5 +1,10 @@
 <?php
 namespace WizardAi\Modules\Wpml\traits;
+if ( ! defined( 'ABSPATH' ) ) exit;
+// phpcs:disable WordPress.DB.DirectDatabaseQuery
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+
+
 
 trait Contents {
     public function render_content_tab() {
@@ -137,7 +142,7 @@ trait Contents {
                     url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-get-missing')); ?>',
                     method: 'GET',
                     data: { type: typeStr, target_lang: lang, status: statusVal },
-                    beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>'); },
+                    beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>'); },
                     success: function(res) {
                         btn.prop('disabled', false).text('Filter');
                         if (res.success) {
@@ -249,7 +254,7 @@ trait Contents {
                         taxonomy: item.taxonomy,
                         target_lang: currentLang
                     },
-                    beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>'); },
+                    beforeSend: function(xhr) { xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>'); },
                     success: function(res) {
                         if (res.success) {
                             $('#item-'+item.id).css('background', '#e5ffe5').append('<span style="background:#00a32a; color:#fff; padding:2px 8px; border-radius:10px; font-size:11px; margin-left:10px; font-weight:600; text-transform:uppercase;">Success</span>');
@@ -543,7 +548,7 @@ trait Contents {
                 $.ajax({
                     url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-translate')); ?>',
                     method: 'POST',
-                    headers: { 'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>' },
+                    headers: { 'X-WP-Nonce': '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>' },
                     data: {
                         object_id: objectId,
                         object_type: objectType,
@@ -582,7 +587,7 @@ trait Contents {
                 $.ajax({
                     url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/wpml-translate')); ?>',
                     method: 'POST',
-                    headers: { 'X-WP-Nonce': '<?php echo wp_create_nonce('wp_rest'); ?>' },
+                    headers: { 'X-WP-Nonce': '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>' },
                     data: {
                         object_id: objId,
                         object_type: objType,
@@ -725,7 +730,10 @@ trait Contents {
                 'post_excerpt' => isset($result['excerpt']) ? $result['excerpt'] : ''
             ];
             
-            $orig_lang_post = isset($_POST['icl_post_language']) ? $_POST['icl_post_language'] : null;
+            $orig_lang_post = null; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            if (isset($_POST['icl_post_language'])) {
+                $orig_lang_post = sanitize_text_field(wp_unslash($_POST['icl_post_language']));
+            }
             $_POST['icl_post_language'] = $target_lang;
             
             if ($existing_trans_id) {

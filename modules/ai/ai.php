@@ -1,5 +1,10 @@
 <?php
 namespace WizardAi\Modules\Ai;
+// phpcs:disable WordPress.DB.DirectDatabaseQuery
+// phpcs:disable PluginCheck.CodeAnalysis.WriteFile.PluginDirectoryWrite
+// phpcs:disable WordPress.DB.RestrictedClasses.mysql__PDO
+// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped
+
 
 class Ai {
     
@@ -11,6 +16,7 @@ class Ai {
     use Traits\CacheBypass;
     use Traits\AiOutputValidator;
     use Traits\AuditLogger;
+    use Traits\AiTokensLog;
 
     public $cm_settings = null;
     public $cm_sql_settings = null;
@@ -31,6 +37,7 @@ class Ai {
         
         $this->register_cache_bypass_hooks();
         $this->register_rag_hooks();
+        $this->register_ai_tokens_log_hooks();
         
         add_action('rest_api_init', [$this, 'register_ai_routes']);
 
@@ -40,7 +47,7 @@ class Ai {
         
         new Abilities();
         
-        add_action('init', [$this, 'register_subplugins_providers'], 5);
+
 
         $ai_enabled = class_exists('\WordPress\AiClient\AiClient');
         if ($ai_enabled) {
@@ -60,6 +67,11 @@ class Ai {
 
 
     public function enqueue_admin_assets($hook) {
+        if (strpos($hook, 'wizard-ai') !== false) {
+            wp_enqueue_style('wai-select2', WIZARD_AI_URL . 'modules/ai/assets/css/select2.min.css', array(), '4.1.0-rc.0');
+            wp_enqueue_script('wai-select2', WIZARD_AI_URL . 'modules/ai/assets/js/select2.min.js', array('jquery'), '4.1.0-rc.0', true);
+        }
+
         if ($hook === 'wizard-ai_page_wizard-ai-models') {
             wp_enqueue_style('wbai-models-ui-css', WIZARD_AI_URL . 'modules/ai/assets/css/models-ui.css', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/css/models-ui.css'));
             wp_enqueue_script('wbai-models-ui-js', WIZARD_AI_URL . 'modules/ai/assets/js/models-ui.js', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/js/models-ui.js'), true);
@@ -69,7 +81,7 @@ class Ai {
             wp_enqueue_script('wbai-skills-ui-js', WIZARD_AI_URL . 'modules/ai/assets/js/skills-ui.js', [], filemtime(WIZARD_AI_PATH . 'modules/ai/assets/js/skills-ui.js'), true);
             wp_localize_script('wbai-skills-ui-js', 'waiSkillsData', [
                 'nonce' => wp_create_nonce('wp_rest'),
-                'apiUrl' => rest_url('wizard-blocks/v1/skills'),
+                'apiUrl' => rest_url('wizard-ai/v1/skills'),
                 'loading' => __('Loading...', 'wizard-ai'),
                 'noSkills' => __('No skills found. Create one!', 'wizard-ai'),
                 'saving' => __('Saving...', 'wizard-ai'),
@@ -138,56 +150,7 @@ class Ai {
             [$this, 'wb_ai_models_page_html']
         );
     }
-    public function register_subplugins_providers() {
-        if (!class_exists('\WordPress\AiClient\AiClient')) {
-            return;
-        }
 
-        if (file_exists(WIZARD_AI_PATH . 'modules/providers/groq/src/autoload.php')) {
-            require_once WIZARD_AI_PATH . 'modules/providers/groq/src/autoload.php';
-        }
-        if (file_exists(WIZARD_AI_PATH . 'modules/providers/openrouter/src/autoload.php')) {
-            require_once WIZARD_AI_PATH . 'modules/providers/openrouter/src/autoload.php';
-        }
-        if (file_exists(WIZARD_AI_PATH . 'modules/providers/huggingface/src/autoload.php')) {
-            require_once WIZARD_AI_PATH . 'modules/providers/huggingface/src/autoload.php';
-        }
-        if (file_exists(WIZARD_AI_PATH . 'modules/providers/github/src/autoload.php')) {
-            require_once WIZARD_AI_PATH . 'modules/providers/github/src/autoload.php';
-        }
-        if (file_exists(WIZARD_AI_PATH . 'modules/providers/mistral/src/autoload.php')) {
-            require_once WIZARD_AI_PATH . 'modules/providers/mistral/src/autoload.php';
-        }
-        if (file_exists(WIZARD_AI_PATH . 'modules/providers/cohere/src/autoload.php')) {
-            require_once WIZARD_AI_PATH . 'modules/providers/cohere/src/autoload.php';
-        }
-        if (file_exists(WIZARD_AI_PATH . 'modules/providers/ollama/src/autoload.php')) {
-            require_once WIZARD_AI_PATH . 'modules/providers/ollama/src/autoload.php';
-        }
-
-        $registry = \WordPress\AiClient\AiClient::defaultRegistry();
-
-        if (class_exists('\WordPress\GroqAiProvider\Provider\GroqProvider') && !$registry->hasProvider('\WordPress\GroqAiProvider\Provider\GroqProvider')) {
-            $registry->registerProvider('\WordPress\GroqAiProvider\Provider\GroqProvider');
-        }
-        if (class_exists('\WordPress\HuggingFaceAiProvider\Provider\HuggingFaceProvider') && !$registry->hasProvider('\WordPress\HuggingFaceAiProvider\Provider\HuggingFaceProvider')) {
-            $registry->registerProvider('\WordPress\HuggingFaceAiProvider\Provider\HuggingFaceProvider');
-        }
-        if (class_exists('\WordPress\OpenRouterAiProvider\Provider\OpenRouterProvider') && !$registry->hasProvider('\WordPress\OpenRouterAiProvider\Provider\OpenRouterProvider')) {
-            $registry->registerProvider('\WordPress\OpenRouterAiProvider\Provider\OpenRouterProvider');
-        }
-        if (class_exists('\WordPress\GithubAiProvider\Provider\GithubProvider') && !$registry->hasProvider('\WordPress\GithubAiProvider\Provider\GithubProvider')) {
-            $registry->registerProvider('\WordPress\GithubAiProvider\Provider\GithubProvider');
-        }
-        if (class_exists('\WordPress\MistralAiProvider\Provider\MistralProvider') && !$registry->hasProvider('\WordPress\MistralAiProvider\Provider\MistralProvider')) {
-            $registry->registerProvider('\WordPress\MistralAiProvider\Provider\MistralProvider');
-        }
-        if (class_exists('\WordPress\CohereAiProvider\Provider\CohereProvider') && !$registry->hasProvider('\WordPress\CohereAiProvider\Provider\CohereProvider')) {
-            $registry->registerProvider('\WordPress\CohereAiProvider\Provider\CohereProvider');
-        }
-        // Ollama Provider integration has been delegated to the official ai-provider-for-ollama plugin
-        // to avoid conflicts and simplify configuration for the user.
-    }
 
 
     public function register_ai_routes() {
@@ -257,7 +220,7 @@ class Ai {
         if ($data['action'] === 'modify-file') {
             $path = $data['original_path'];
             if ($data['is_new']) {
-                if (file_exists($path)) unlink($path);
+                if (file_exists($path)) wp_delete_file($path);
             } else {
                 if (isset($data['physical_backup']) && $data['physical_backup']) {
                     $physical_file = $upload_dir['basedir'] . '/wbai/backup/' . basename($data['physical_backup']);
@@ -317,7 +280,7 @@ class Ai {
                 foreach ($data['files'] as $f) {
                     $path = $f['path'];
                     if (!empty($f['is_new'])) {
-                        if (file_exists($path)) unlink($path);
+                        if (file_exists($path)) wp_delete_file($path);
                     } elseif (!empty($f['physical_backup'])) {
                         $physical_file = $upload_dir['basedir'] . '/wbai/backup/' . basename($f['physical_backup']);
                         if (file_exists($physical_file)) {
@@ -368,7 +331,7 @@ class Ai {
             }
         }
         
-        unlink($backup_file);
+        wp_delete_file($backup_file);
         return new \WP_REST_Response(['success' => true, 'message' => 'Rollback completed successfully.'], 200);
     }
 
@@ -378,7 +341,7 @@ class Ai {
         if (is_dir($backup_dir)) {
             $files = glob($backup_dir . '/*');
             foreach ($files as $file) {
-                if (is_file($file)) unlink($file);
+                if (is_file($file)) wp_delete_file($file);
             }
         }
         return new \WP_REST_Response(['success' => true, 'message' => 'Temporary backups cleared.'], 200);
@@ -392,12 +355,12 @@ class Ai {
             file_put_contents($flag_file, '1');
             return new \WP_REST_Response(['success' => true, 'safe_mode' => true], 200);
         } elseif ($force === 'disable') {
-            if (file_exists($flag_file)) @unlink($flag_file);
+            if (file_exists($flag_file)) @wp_delete_file($flag_file);
             return new \WP_REST_Response(['success' => true, 'safe_mode' => false], 200);
         }
 
         if (file_exists($flag_file)) {
-            @unlink($flag_file);
+            @wp_delete_file($flag_file);
             return new \WP_REST_Response(['success' => true, 'safe_mode' => false], 200);
         } else {
             file_put_contents($flag_file, '1');
@@ -471,6 +434,9 @@ class Ai {
         
         $requirements = new \WordPress\AiClient\Providers\Models\DTO\ModelRequirements([], []);
         $registry->findModelsMetadataForSupport($requirements);
+        
+        delete_transient('wbai_client_models');
+        delete_transient('wbai_client_models_vision');
     }
 
     public function get_ai_models(\WP_REST_Request $request) {
@@ -481,8 +447,16 @@ class Ai {
 
             $registry = \WordPress\AiClient\AiClient::defaultRegistry();
             
-            // Invalidate AiClient internal caches if requested, or for local providers
             $forceRefresh = isset($_GET['refresh']) && $_GET['refresh'] === '1';
+            $is_vision = $request->get_param('vision') === '1';
+            $transient_key = $is_vision ? 'wbai_client_models_vision' : 'wbai_client_models';
+            
+            if (!$forceRefresh) {
+                $cached_models = get_transient($transient_key);
+                if ($cached_models !== false) {
+                    return new \WP_REST_Response(['success' => true, 'models' => $cached_models], 200);
+                }
+            }
             
             foreach ($registry->getRegisteredProviderIds() as $providerId) {
                 if ($forceRefresh || in_array($providerId, ['local', 'ollama'])) {
@@ -547,7 +521,8 @@ class Ai {
             }
             
             if (!empty($models)) {
-                set_transient('wbai_client_models', $models, HOUR_IN_SECONDS);
+                $models = apply_filters('wizard_ai/models', $models);
+                set_transient($transient_key, $models, 0);
             }
             return new \WP_REST_Response(['success' => true, 'models' => $models], 200);
             

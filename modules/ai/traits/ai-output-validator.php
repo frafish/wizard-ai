@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait AiOutputValidator {
 
     public function extract_and_validate_json($ai_text) {

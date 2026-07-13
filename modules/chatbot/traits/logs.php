@@ -1,5 +1,12 @@
 <?php
 namespace WizardAi\Modules\Chatbot\Traits;
+if ( ! defined( 'ABSPATH' ) ) exit;
+// phpcs:disable WordPress.Security.ValidatedSanitizedInput
+// phpcs:disable WordPress.Security.NonceVerification.Recommended
+// phpcs:disable WordPress.DB.DirectDatabaseQuery
+// phpcs:disable WordPress.DB.SlowDBQuery
+
+
 
 trait Logs {
     public function wb_ai_chatbot_logs_page_html() {
@@ -8,11 +15,32 @@ trait Logs {
         $action = isset($_GET['action']) ? $_GET['action'] : 'list';
         $session_id = isset($_GET['session_id']) ? sanitize_text_field($_GET['session_id']) : '';
 
+        if (isset($_POST['action']) && $_POST['action'] === 'bulk_delete' && isset($_POST['session_ids']) && is_array($_POST['session_ids'])) {
+            check_admin_referer('wai_bulk_delete_logs');
+            foreach ($_POST['session_ids'] as $sid) {
+                $sid = sanitize_text_field($sid);
+                $comment_ids = $wpdb->get_col($wpdb->prepare("
+                    SELECT comment_id 
+                    FROM {$wpdb->commentmeta} 
+                    WHERE meta_key = 'wai_session_id' AND meta_value = %s
+                ", $sid));
+                
+                foreach ($comment_ids as $c_id) {
+                    wp_delete_comment(intval($c_id), true);
+                }
+                delete_transient('wai_chatbot_' . $sid);
+                delete_transient('wai_chatbot_' . $sid . '_email');
+                delete_transient('wai_chatbot_manual_' . $sid);
+            }
+            echo '<script>window.location.replace("' . esc_url_raw(admin_url('admin.php?page=wizard-ai-chatbot-logs')) . '");</script>';
+            exit;
+        }
+
         if (in_array($action, ['delete_message', 'delete_session'])) {
             check_admin_referer('wai_delete_log');
             if ($action === 'delete_message' && !empty($_GET['comment_id'])) {
                 wp_delete_comment(intval($_GET['comment_id']), true);
-                echo '<script>window.location.replace("' . admin_url('admin.php?page=wizard-ai-chatbot-logs&action=view&session_id=' . urlencode($session_id)) . '");</script>';
+                echo '<script>window.location.replace("' . esc_url_raw(admin_url('admin.php?page=wizard-ai-chatbot-logs&action=view&session_id=' . urlencode($session_id))) . '");</script>';
                 exit;
             } elseif ($action === 'delete_session' && !empty($session_id)) {
                 // Fetch comment IDs directly via SQL to bypass WPML filtering which hides comments with post_ID = 0
@@ -28,7 +56,7 @@ trait Logs {
                 delete_transient('wai_chatbot_' . $session_id);
                 delete_transient('wai_chatbot_' . $session_id . '_email');
                 delete_transient('wai_chatbot_manual_' . $session_id);
-                echo '<script>window.location.replace("' . admin_url('admin.php?page=wizard-ai-chatbot-logs') . '");</script>';
+                echo '<script>window.location.replace("' . esc_url_raw(admin_url('admin.php?page=wizard-ai-chatbot-logs')) . '");</script>';
                 exit;
             }
         }
@@ -78,6 +106,8 @@ trait Logs {
                         $user_agent = $c->comment_agent;
                     }
                 }
+                
+                /* translators: %s: Session ID */
                 echo '<h3>' . sprintf(esc_html__('Session ID: %s', 'wizard-ai'), esc_html($session_id)) . '</h3>';
                 
                 $del_session_url = wp_nonce_url(admin_url('admin.php?page=wizard-ai-chatbot-logs&action=delete_session&session_id=' . urlencode($session_id)), 'wai_delete_log');
@@ -101,7 +131,7 @@ trait Logs {
                             method: 'POST',
                             data: { session_id: sessionId },
                             beforeSend: function(xhr) {
-                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>');
                             },
                             success: function(response) {
                                 btn.prop('disabled', false).text('<?php echo esc_js(__('Summarize Session', 'wizard-ai')); ?>');
@@ -211,7 +241,7 @@ trait Logs {
                         'return' => 'ids'
                     ]);
                     $order_count = count($customer_orders);
-                    echo '<p style="margin: 0 0 5px 0;"><strong>' . esc_html__('Orders:', 'wizard-ai') . '</strong> ' . $order_count . '</p>';
+                    echo '<p style="margin: 0 0 5px 0;"><strong>' . esc_html__('Orders:', 'wizard-ai') . '</strong> ' . esc_html($order_count) . '</p>';
                     
                     if ($session_user_id > 0) {
                         $cart_meta = get_user_meta($session_user_id, '_woocommerce_persistent_cart_' . get_current_blog_id(), true);
@@ -257,10 +287,22 @@ trait Logs {
                         $margin = '0 50px 15px 0'; // AI side
                     }
                     
-                    $author_name_html = esc_html($c->comment_author);
-                    if (!$is_ai && !empty($c->user_id) && $c->user_id > 0) {
-                        $user_link = get_edit_user_link($c->user_id);
-                        $author_name_html = '<a href="' . esc_url($user_link) . '">' . esc_html($c->comment_author) . '</a>';
+                    if ($is_ai) {
+                        $ai_name = get_option('wai_chatbot_name', 'AI Bot');
+                        if (empty($ai_name)) {
+                            $ai_name = 'AI Bot';
+                        }
+                        $ai_name = apply_filters('wpml_translate_single_string', $ai_name, 'wizard-ai', 'chatbot_name');
+                        $author_name_html = esc_html($ai_name);
+                    } else if (strpos($c->comment_author, 'Operator') !== false) {
+                        $author_name_html = esc_html($c->comment_author);
+                    } else {
+                        $author_display = ($c->comment_author === 'Visitor') ? 'You' : $c->comment_author;
+                        $author_name_html = esc_html($author_display);
+                        if (!empty($c->user_id) && $c->user_id > 0) {
+                            $user_link = get_edit_user_link($c->user_id);
+                            $author_name_html = '<a href="' . esc_url($user_link) . '">' . esc_html($author_display) . '</a>';
+                        }
                     }
                     
                     $del_msg_url = wp_nonce_url(admin_url('admin.php?page=wizard-ai-chatbot-logs&action=delete_message&comment_id=' . $c->comment_ID . '&session_id=' . urlencode($session_id)), 'wai_delete_log');
@@ -271,7 +313,7 @@ trait Logs {
                     echo '<a href="' . esc_url($edit_msg_url) . '" style="color: #2271b1; text-decoration: none; margin-right: 8px;" title="' . esc_attr__('Edit Message natively', 'wizard-ai') . '"><span class="dashicons dashicons-edit"></span></a>';
                     echo '<a href="' . esc_url($del_msg_url) . '" onclick="return confirm(\'' . esc_js(__('Delete this message?', 'wizard-ai')) . '\');" style="color: #b32d2e; text-decoration: none;" title="' . esc_attr__('Delete Message', 'wizard-ai') . '"><span class="dashicons dashicons-trash"></span></a>';
                     echo '</div>';
-                    echo '<strong>' . $author_name_html . '</strong> <span style="font-size: 11px; color: #888;">(' . esc_html($c->comment_date) . ')</span>';
+                    echo '<strong>' . wp_kses_post($author_name_html) . '</strong> <span style="font-size: 11px; color: #888;">(' . esc_html($c->comment_date) . ')</span>';
                     echo '<div style="margin-top: 8px;">' . wp_kses_post($c->comment_content) . '</div>';
                     echo '</div>';
                 }
@@ -306,7 +348,7 @@ trait Logs {
                             method: 'POST',
                             data: { session_id: sessionId, manual: isChecked ? 1 : 0 },
                             beforeSend: function(xhr) {
-                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>');
                             }
                         });
                     });
@@ -324,7 +366,7 @@ trait Logs {
                             method: 'POST',
                             data: { session_id: sessionId, message: msg },
                             beforeSend: function(xhr) {
-                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>');
                             },
                             success: function(response) {
                                 btn.prop('disabled', false).text('<?php echo esc_js(__('Send Message', 'wizard-ai')); ?>');
@@ -358,7 +400,7 @@ trait Logs {
                             method: 'POST',
                             data: { session_id: '<?php echo esc_js($session_id); ?>', last_time: lastDateStr },
                             beforeSend: function(xhr) {
-                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo wp_create_nonce('wp_rest'); ?>');
+                                xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>');
                             },
                             success: function(response) {
                                 if (response.success && response.messages && response.messages.length > 0) {
@@ -380,9 +422,22 @@ trait Logs {
         } else {
             // List Sessions
             echo '<h1 class="wp-heading-inline">' . esc_html__('Chatbot Logs', 'wizard-ai') . '</h1>';
-            if (!empty($_GET['filter_email']) || !empty($_GET['filter_ip'])) {
+            
+            $search_val = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+            if (!empty($_GET['filter_email']) || !empty($_GET['filter_ip']) || !empty($search_val)) {
                 echo ' <a href="' . esc_url(admin_url('admin.php?page=wizard-ai-chatbot-logs')) . '" class="page-title-action">' . esc_html__('Clear Filter', 'wizard-ai') . '</a>';
             }
+            
+            // Search Form
+            echo '<form method="get" style="float: right;">';
+            echo '<input type="hidden" name="page" value="wizard-ai-chatbot-logs">';
+            echo '<p class="search-box">';
+            echo '<label class="screen-reader-text" for="post-search-input">' . esc_html__('Search Users', 'wizard-ai') . ':</label>';
+            echo '<input type="search" id="post-search-input" name="s" value="' . esc_attr($search_val) . '" placeholder="' . esc_attr__('Search User/Email', 'wizard-ai') . '">';
+            echo '<input type="submit" id="search-submit" class="button" value="' . esc_html__('Search Sessions', 'wizard-ai') . '">';
+            echo '</p>';
+            echo '</form>';
+            
             echo '<hr class="wp-header-end">';
             
             $per_page = 20;
@@ -392,30 +447,41 @@ trait Logs {
             $where_clause = "c.comment_type = 'wai_chat' AND m.meta_key = 'wai_session_id'";
             $having_clause = "HAVING MAX(CASE WHEN c.comment_author != 'Wizard AI' THEN 1 ELSE 0 END) = 1 AND m.meta_value != ''";
             
+            $op_like = 'Operator%';
             if (!empty($_GET['filter_email'])) {
-                $having_clause .= $wpdb->prepare(" AND MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE 'Operator%%' THEN c.comment_author_email ELSE NULL END) = %s", sanitize_text_field($_GET['filter_email']));
+                $having_clause .= $wpdb->prepare(" AND MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.comment_author_email ELSE NULL END) = %s", $op_like, sanitize_text_field($_GET['filter_email']));
             } else if (!empty($_GET['filter_ip'])) {
-                $having_clause .= $wpdb->prepare(" AND MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE 'Operator%%' THEN c.comment_author_IP ELSE NULL END) = %s", sanitize_text_field($_GET['filter_ip']));
+                $having_clause .= $wpdb->prepare(" AND MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.comment_author_IP ELSE NULL END) = %s", $op_like, sanitize_text_field($_GET['filter_ip']));
+            }
+            
+            if (!empty($search_val)) {
+                $like_val = '%' . $wpdb->esc_like($search_val) . '%';
+                $having_clause .= $wpdb->prepare(" AND (
+                    MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.comment_author ELSE NULL END) LIKE %s
+                    OR 
+                    MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.comment_author_email ELSE NULL END) LIKE %s
+                )", $op_like, $like_val, $op_like, $like_val);
             }
 
             // Get unique session IDs using SQL since WP_Comment_Query doesn't support GROUP BY meta_value natively
             $query = "
                 SELECT m.meta_value AS session_id, 
                        MAX(c.comment_date) AS last_activity, 
-                       MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE 'Operator%%' THEN c.comment_author_email ELSE NULL END) AS comment_author_email, 
-                       MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE 'Operator%%' THEN c.comment_author ELSE NULL END) AS comment_author,
-                       MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE 'Operator%%' THEN c.user_id ELSE 0 END) AS user_id,
-                       MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE 'Operator%%' THEN c.comment_author_IP ELSE NULL END) AS comment_author_IP,
-                       MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE 'Operator%%' THEN c.comment_agent ELSE NULL END) AS comment_agent
-                FROM {$wpdb->comments} c 
-                INNER JOIN {$wpdb->commentmeta} m ON c.comment_ID = m.comment_id 
-                WHERE {$where_clause} 
-                GROUP BY m.meta_value 
-                {$having_clause}
-                ORDER BY last_activity DESC 
-                LIMIT %d OFFSET %d
-            ";
-            $sessions = $wpdb->get_results($wpdb->prepare($query, $per_page, $offset));
+                        MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.comment_author_email ELSE NULL END) AS comment_author_email, 
+                        MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.comment_author ELSE NULL END) AS comment_author,
+                        MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.user_id ELSE 0 END) AS user_id,
+                        MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.comment_author_IP ELSE NULL END) AS comment_author_IP,
+                        MAX(CASE WHEN c.comment_author != 'Wizard AI' AND c.comment_author NOT LIKE %s THEN c.comment_agent ELSE NULL END) AS comment_agent
+                 FROM {$wpdb->comments} c 
+                 INNER JOIN {$wpdb->commentmeta} m ON c.comment_ID = m.comment_id 
+                 WHERE {$where_clause} 
+                 GROUP BY m.meta_value 
+                 {$having_clause}
+                 ORDER BY last_activity DESC 
+                 LIMIT %d OFFSET %d
+             ";
+             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+             $sessions = $wpdb->get_results($wpdb->prepare($query, $op_like, $op_like, $op_like, $op_like, $op_like, $per_page, $offset));
 
             $total_query = "
                 SELECT COUNT(*) FROM (
@@ -427,14 +493,28 @@ trait Logs {
                     {$having_clause}
                 ) AS count_table
             ";
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
             $total_sessions = $wpdb->get_var($total_query);
             $total_pages = ceil($total_sessions / $per_page);
 
             if (empty($sessions)) {
                 echo '<p>' . esc_html__('No chat sessions found.', 'wizard-ai') . '</p>';
             } else {
+                echo '<form method="post" action="">';
+                wp_nonce_field('wai_bulk_delete_logs');
+                echo '<div class="tablenav top">';
+                echo '<div class="alignleft actions bulkactions">';
+                echo '<select name="action">';
+                echo '<option value="-1">' . esc_html__('Bulk actions', 'wizard-ai') . '</option>';
+                echo '<option value="bulk_delete">' . esc_html__('Delete', 'wizard-ai') . '</option>';
+                echo '</select>';
+                echo '<input type="submit" class="button action" value="' . esc_html__('Apply', 'wizard-ai') . '" onclick="if(document.querySelector(\'select[name=action]\').value === \'bulk_delete\'){ return confirm(\'' . esc_js(__('Are you sure you want to delete selected sessions?', 'wizard-ai')) . '\'); } return true;">';
+                echo '</div>';
+                echo '</div>';
+
                 echo '<table class="wp-list-table widefat fixed striped">';
                 echo '<thead><tr>';
+                echo '<td class="manage-column column-cb check-column"><input type="checkbox" id="cb-select-all-1"></td>';
                 echo '<th>' . esc_html__('Session ID', 'wizard-ai') . '</th>';
                 echo '<th>' . esc_html__('User', 'wizard-ai') . '</th>';
                 echo '<th>' . esc_html__('Email', 'wizard-ai') . '</th>';
@@ -457,8 +537,9 @@ trait Logs {
                     }
                     
                     echo '<tr>';
-                    echo '<td><strong>' . esc_html($s->session_id) . '</strong></td>';
-                    echo '<td>' . $display_name_html . '</td>';
+                    echo '<th scope="row" class="check-column"><input type="checkbox" name="session_ids[]" value="' . esc_attr($s->session_id) . '"></th>';
+                    echo '<td><strong><a href="' . esc_url($view_url) . '">' . esc_html($s->session_id) . '</a></strong></td>';
+                    echo '<td>' . wp_kses_post($display_name_html) . '</td>';
                     echo '<td>' . esc_html($s->comment_author_email) . '</td>';
                     echo '<td>' . esc_html($s->comment_author_IP) . '</td>';
                     echo '<td style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' . esc_attr($s->comment_agent) . '">' . esc_html($s->comment_agent) . '</td>';
@@ -484,11 +565,54 @@ trait Logs {
                         'current' => $paged
                     ]);
                     if ($page_links) {
-                        echo '<div class="tablenav"><div class="tablenav-pages" style="float:left; margin-top:10px;">' . $page_links . '</div></div>';
+                        echo '<div class="tablenav"><div class="tablenav-pages" style="float:left; margin-top:10px;">' . wp_kses_post($page_links) . '</div></div>';
                     }
                 }
+                echo '</form>';
             }
         }
+        
+        // Add new activity alert logic
+        ?>
+        <div id="wai-new-activity-alert" class="notice notice-info is-dismissible" style="display:none; border-left-color: #2271b1;">
+            <p><strong><?php esc_html_e('New chat activity detected!', 'wizard-ai'); ?></strong> <a href="javascript:void(0)" onclick="window.location.reload();" style="margin-left: 10px; color: #2271b1; text-decoration: underline; font-weight: 500;"><?php esc_html_e('Refresh page to see updates', 'wizard-ai'); ?></a></p>
+        </div>
+        <script>
+        jQuery(document).ready(function($) {
+            var checkInterval = 10000; // Check every 10 seconds
+            var lastCheck = '<?php echo esc_js(gmdate('Y-m-d H:i:s')); ?>';
+            
+            // Insert alert dynamically after header
+            if ($('.wp-header-end').length) {
+                $('#wai-new-activity-alert').insertAfter('.wp-header-end');
+            } else {
+                $('#wai-new-activity-alert').prependTo('.wrap');
+            }
+            
+            setInterval(function() {
+                // If the alert is already visible, don't keep polling
+                if ($('#wai-new-activity-alert').is(':visible')) {
+                    return;
+                }
+                
+                $.ajax({
+                    url: '<?php echo esc_url_raw(rest_url('wizard-ai/v1/chatbot/check-new-activity')); ?>',
+                    method: 'POST',
+                    data: { last_check: lastCheck },
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader('X-WP-Nonce', '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>');
+                    },
+                    success: function(response) {
+                        if (response.success && response.has_new) {
+                            $('#wai-new-activity-alert').fadeIn();
+                        }
+                    }
+                });
+            }, checkInterval);
+        });
+        </script>
+        <?php
+        
         echo '</div>';
     }
 
@@ -514,7 +638,7 @@ trait Logs {
         $chat_transcript = "";
         foreach ($comments as $c) {
             $author = ($c->comment_author === 'Wizard AI') ? 'AI' : 'User';
-            $chat_transcript .= "{$author}: " . strip_tags($c->comment_content) . "\n";
+            $chat_transcript .= "{$author}: " . wp_strip_all_tags($c->comment_content) . "\n";
         }
 
         if (!class_exists('\WordPress\AiClient\AiClient')) {
@@ -530,6 +654,13 @@ trait Logs {
                     new \WordPress\AiClient\Messages\DTO\MessagePart($prompt)
                 ])
             ]);
+            
+            $configured_model = get_option('wai_chatbot_model', '');
+            if ($configured_model && strpos($configured_model, '|') !== false) {
+                list($selectedProvider, $selectedModel) = explode('|', $configured_model);
+                $ai_query->usingModelPreference([$selectedProvider, $selectedModel]);
+            }
+            
             $res = $ai_query->generateResult();
             $summary = $res->toText();
 

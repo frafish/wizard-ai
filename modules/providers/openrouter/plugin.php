@@ -1,5 +1,6 @@
 <?php
-
+declare(strict_types=1);
+namespace WordPress\OpenRouterAiProvider;
 /**
  * Plugin Name: AI Provider for OpenRouter
  * Plugin URI: https://github.com/WordPress/ai-provider-for-openrouter
@@ -16,9 +17,9 @@
  * @package WordPress\OpenRouterAiProvider
  */
 
-declare(strict_types=1);
 
-namespace WordPress\OpenRouterAiProvider;
+
+
 
 use WordPress\AiClient\AiClient;
 use WordPress\OpenRouterAiProvider\Provider\OpenRouterProvider;

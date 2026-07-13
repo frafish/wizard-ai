@@ -1,6 +1,5 @@
 <?php
 namespace WizardAi\Modules\Playground\Traits;
-
 trait SafeMode {
 
     public function enable_safe_mode() {
@@ -41,7 +40,7 @@ trait SafeMode {
             "    register_shutdown_function(function() use (\$cron_flag) {\n" .
             "        \$error = error_get_last();\n" .
             "        if (\$error === null || !in_array(\$error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR])) {\n" .
-            "            @unlink(\$cron_flag);\n" .
+            "            @wp_delete_file(\$cron_flag);\n" .
             "        }\n" .
             "    });\n" .
             "}\n" .
@@ -119,12 +118,13 @@ trait SafeMode {
         $theme_dir = get_theme_root() . '/wizard-ai-safe-theme';
 
         if (file_exists($plugin_file)) {
-            unlink($plugin_file);
+            wp_delete_file($plugin_file);
         }
         if (is_dir($theme_dir)) {
-            if (file_exists($theme_dir . '/style.css')) unlink($theme_dir . '/style.css');
-            if (file_exists($theme_dir . '/index.php')) unlink($theme_dir . '/index.php');
-            rmdir($theme_dir);
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            WP_Filesystem();
+            global $wp_filesystem;
+            $wp_filesystem->rmdir($theme_dir, true);
         }
     }
 
@@ -136,12 +136,12 @@ trait SafeMode {
             file_put_contents($flag_file, '1');
             return new \WP_REST_Response(['success' => true, 'safe_mode' => true], 200);
         } elseif ($force === 'disable') {
-            if (file_exists($flag_file)) @unlink($flag_file);
+            if (file_exists($flag_file)) @wp_delete_file($flag_file);
             return new \WP_REST_Response(['success' => true, 'safe_mode' => false], 200);
         }
 
         if (file_exists($flag_file)) {
-            @unlink($flag_file);
+            @wp_delete_file($flag_file);
             return new \WP_REST_Response(['success' => true, 'safe_mode' => false], 200);
         } else {
             file_put_contents($flag_file, '1');

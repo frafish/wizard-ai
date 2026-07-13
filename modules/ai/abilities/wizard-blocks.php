@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Abilities;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait WizardBlocks {
     public function register_wizard_blocks_abilities() {
         if (!class_exists('\WizardBlocks\Modules\Block\Block')) {

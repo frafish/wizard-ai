@@ -1,11 +1,11 @@
 <?php
 namespace WizardAi\Modules\Ai\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Rag {
 
     public function register_rag_hooks() {
         // Include RAG embeddings cron class
-        require_once WIZARD_AI_PATH . 'modules/ai/cron-rag.php';
+        require_once WIZARD_AI_PATH . 'modules/ai/rag.php';
 
         add_action('wizard_ai_rag_sync_event', [$this, 'run_rag_sync']);
         add_action('admin_init', [$this, 'rag_settings_init']);
@@ -30,15 +30,15 @@ trait Rag {
     }
 
     public function rag_settings_init() {
-        register_setting('wai_rag_settings_group', 'wai_rag_cron_enabled');
-        register_setting('wai_rag_settings_group', 'wai_rag_cron_frequency');
-        register_setting('wai_rag_settings_group', 'wai_rag_embedding_provider');
+        register_setting('wai_rag_settings_group', 'wai_rag_cron_enabled', ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting('wai_rag_settings_group', 'wai_rag_cron_frequency', ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting('wai_rag_settings_group', 'wai_rag_embedding_provider', ['sanitize_callback' => 'sanitize_text_field']);
         
-        register_setting('wai_rag_settings_group', 'wai_rag_sync_contents');
-        register_setting('wai_rag_settings_group', 'wai_rag_sync_products');
-        register_setting('wai_rag_settings_group', 'wai_rag_sync_terms');
-        register_setting('wai_rag_settings_group', 'wai_rag_sync_plugins');
-        register_setting('wai_rag_settings_group', 'wai_rag_sync_settings');
+        register_setting('wai_rag_settings_group', 'wai_rag_sync_contents', ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting('wai_rag_settings_group', 'wai_rag_sync_products', ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting('wai_rag_settings_group', 'wai_rag_sync_terms', ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting('wai_rag_settings_group', 'wai_rag_sync_plugins', ['sanitize_callback' => 'sanitize_text_field']);
+        register_setting('wai_rag_settings_group', 'wai_rag_sync_settings', ['sanitize_callback' => 'sanitize_text_field']);
     }
 
     public function rag_provider_changed($old_value, $new_value) {
@@ -89,7 +89,7 @@ trait Rag {
 
     public function handle_manual_rag_sync() {
         if (!current_user_can('manage_options')) {
-            wp_die(__('Unauthorized.', 'wizard-ai'));
+            wp_die(esc_html__('Unauthorized.', 'wizard-ai'));
         }
         check_admin_referer('wizard_ai_rag_sync_nonce');
         
@@ -272,11 +272,11 @@ trait Rag {
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Indexed Posts', 'wizard-ai'); ?></th>
-                            <td><strong><?php echo number_format_i18n($total_posts); ?></strong></td>
+                            <td><strong><?php echo esc_html(number_format_i18n($total_posts)); ?></strong></td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Total Vectors (Chunks)', 'wizard-ai'); ?></th>
-                            <td><strong><?php echo number_format_i18n($total_chunks); ?></strong></td>
+                            <td><strong><?php echo esc_html(number_format_i18n($total_chunks)); ?></strong></td>
                         </tr>
                         <tr>
                             <th><?php esc_html_e('Last Sync Time', 'wizard-ai'); ?></th>

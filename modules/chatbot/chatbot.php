@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Chatbot;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Chatbot {
     use Traits\Init;
     use Traits\Ui;

@@ -1,5 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Traits;
+if (!defined('ABSPATH')) { exit; }
 
 if (!class_exists('WP_List_Table')) {
     require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
@@ -511,6 +512,7 @@ trait AbilitiesUi {
         }
 
         $abilities_raw = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
+        $abilities_raw = apply_filters('wizard_ai/abilities', $abilities_raw);
         $abilities = [];
         $stats = [
             'total' => 0,

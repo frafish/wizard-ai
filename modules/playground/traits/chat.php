@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Playground\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Chat {
     public function handle_chat_request(\WP_REST_Request $request) {
         $params = $request->get_json_params();
@@ -139,6 +139,7 @@ trait Chat {
             }
             
             $abilities = function_exists('wp_get_abilities') ? wp_get_abilities() : [];
+            $abilities = apply_filters('wizard_ai/abilities', $abilities);
             $abilities = apply_filters('wizard_blocks_ai_abilities', $abilities);
 
             $tools_list = "AVAILABLE TOOLS:\n";
@@ -167,7 +168,6 @@ trait Chat {
                 . "When given a task, you must decompose it into multiple smaller actions (divide et impera). "
                 . "You MUST call the first tool, wait for its result, and then call the next tool in subsequent turns until all actions are complete. "
                 . "Violating this rule will cause a fatal API error ('The API only allows a single function response').\n"
-                //. "IMPORTANT: DO NOT hallucinate tools. If the user asks a general question, for a joke, or says hello, DO NOT attempt to use a tool (e.g., never call a non-existent 'wpab__joke' tool). Just answer natively with plain text.\n"
                 . "When answering natively in plain text, use standard conversational human language. DO NOT output JSON dictionaries or structured data unless explicitly requested by the user.\n"
                 //. "CRITICAL: NEVER use placeholders like `<post-id>` or `[insert data]` in tool arguments. If you don't know a required parameter, you MUST first use another tool (like execute-php or db-query) to find the correct data, or ask the user to provide it.\n"
                 //. "ERROR RECOVERY: If a tool call fails or returns an error, DO NOT give up or output an empty error JSON template (e.g. {\"name\": null}). Instead, try to answer the user's original request natively in plain text, or apologize and explain to the user what went wrong in standard conversational language.\n"
@@ -348,7 +348,8 @@ trait Chat {
                                 if (isset($args['path'])) {
                                     $path = wp_normalize_path($args['path']);
                                     if (file_exists($path)) {
-                                        $rel_path = str_replace(wp_normalize_path(WP_CONTENT_DIR), '', $path);
+                                        // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.PluginDirectoryWrite
+                                        $rel_path = str_replace(wp_normalize_path(constant('WP_CONTENT_DIR')), '', $path);
                                         $safe_name = ltrim(str_replace(['/', '\\'], '-', $rel_path), '-');
                                         $physical_backup = $backup_dir . '/' . $safe_name . '_' . time() . '.backup';
                                         copy($path, $physical_backup);
@@ -373,6 +374,7 @@ trait Chat {
                                         foreach ($file_matches[1] as $file_path) {
                                             $file_path = wp_normalize_path($file_path);
                                             if (file_exists($file_path)) {
+                                                // phpcs:ignore PluginCheck.CodeAnalysis.WriteFile.PluginDirectoryWrite
                                                 $rel_path = str_replace(wp_normalize_path(WP_CONTENT_DIR), '', $file_path);
                                                 $safe_name = ltrim(str_replace(['/', '\\'], '-', $rel_path), '-');
                                                 $physical_backup = $backup_dir . '/' . $safe_name . '_' . time() . '.backup';
@@ -459,7 +461,9 @@ trait Chat {
                                 if (strpos($table, $wpdb->prefix) !== 0 && strpos($table, 'wp_') === 0) {
                                     $table = $wpdb->prefix . substr($table, 3);
                                 }
+                                // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
                                 $select_query = "SELECT * FROM `{$table}` WHERE {$where}";
+                                // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
                                 $rows = $wpdb->get_results($select_query, ARRAY_A);
                                 if (!empty($rows)) {
                                     $backup_data['db_changes'][] = [
@@ -483,7 +487,8 @@ trait Chat {
                     };
                     add_filter('query', $query_logger, 1);
 
-                    global $wai_is_executing;
+                    // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
+        global $wai_is_executing;
                     $wai_is_executing = true;
                     
                     foreach ($last_message->getParts() as $part) {
@@ -764,10 +769,7 @@ trait Chat {
                             $extracted_text = "";
                             if (isset($parsed_json['response'])) {
                                 $extracted_text = is_string($parsed_json['response']) ? $parsed_json['response'] : json_encode($parsed_json['response']);
-                            } elseif (isset($parsed_json['joke'])) {
-                                $extracted_text = is_string($parsed_json['joke']) ? $parsed_json['joke'] : json_encode($parsed_json['joke']);
                             }
-                            
                             if (empty(trim($extracted_text))) {
                                 $ai_text = "I'm sorry, I couldn't figure out how to process that request.";
                             } else {

@@ -1,8 +1,8 @@
 === Wizard AI ===
 Contributors: frapesce
-Tags: ai, agent, claude, mcp, gutenberg, chatbot, llms, wpml, woocommerce
-Requires at least: 6.0
-Tested up to: 6.9
+Tags: ai, agent, claude, mcp, gutenberg
+Requires at least: 7.0
+Tested up to: 7.0
 Stable tag: 1.0.1
 Requires PHP: 8.1
 License: GPLv3 or later

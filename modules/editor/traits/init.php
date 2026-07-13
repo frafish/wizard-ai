@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Editor\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait Init {
     public function register_agent_hooks() {
         add_action('admin_enqueue_scripts', [$this, 'enqueue_agent_scripts']);

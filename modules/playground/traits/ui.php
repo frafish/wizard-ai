@@ -1,6 +1,5 @@
 <?php
 namespace WizardAi\Modules\Playground\Traits;
-
 trait Ui {
     public function wb_ai_page_html() {
         $is_ai_configured = false;
@@ -15,7 +14,7 @@ trait Ui {
         ?>
         <div class="wrap">
             <h1 style="display: flex; align-items: center; gap: 10px;">
-                <span class="dashicons dashicons-superhero"></span>
+                <img src="<?php echo esc_url(WIZARD_AI_URL . 'modules/ai/assets/svg/wizard-ai.svg'); ?>" alt="Wizard AI" style="width: 40px; height: 40px;">
                 <?php esc_html_e('Wizard AI Playground', 'wizard-ai'); ?>
                 <a href="<?php echo esc_url(admin_url('admin.php?page=wizard-ai-automation')); ?>" class="page-title-action"><span class="dashicons dashicons-clock" style="vertical-align: middle;"></span> <?php esc_html_e('Automated Tasks', 'wizard-ai'); ?></a>
             </h1>
@@ -105,6 +104,7 @@ trait Ui {
             $has_rag_data = false;
             if (file_exists($db_path)) {
                 try {
+                    // phpcs:ignore WordPress.DB.RestrictedClasses.mysql__PDO
                     $db = new \PDO('sqlite:' . $db_path);
                     $db->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_SILENT);
                     $result = $db->query("SELECT COUNT(*) as c FROM document_embeddings");
@@ -199,7 +199,8 @@ trait Ui {
                                 $prompt_text = $matches[3];
                                 $date_text = $matches[1];
                                 $user_text = $matches[2];
-                                $display_text = sprintf(__('On %s by %s', 'wizard-ai'), $date_text, $user_text);
+                                /* translators: 1: Date, 2: User */
+                                $display_text = sprintf(__('On %1$s by %2$s', 'wizard-ai'), $date_text, $user_text);
                                 echo '<button type="button" class="button button-secondary wai-recent-prompt-btn" onclick="document.getElementById(\'wai-playground-prompt\').value = this.dataset.prompt; document.getElementById(\'wai-playground-prompt\').focus();" data-prompt="' . esc_attr($prompt_text) . '" title="' . esc_attr($display_text) . '">' . esc_html($prompt_text) . '</button>';
                             }
                         }
@@ -308,7 +309,10 @@ trait Ui {
                             </h2>
                         </summary>
                 <div id="wai-backups-container" class="wai-backups-container">
-                    <p class="wai-backups-summary"><?php echo sprintf(esc_html__('There are %d available backups', 'wizard-ai'), count($backup_actions)); ?></p>
+                    <p class="wai-backups-summary"><?php 
+                        /* translators: %d: Number of backups */
+                        echo sprintf(esc_html__('There are %d available backups', 'wizard-ai'), count($backup_actions)); 
+                    ?></p>
                     <ul class="wai-backups-list">
                             <?php foreach ($backup_actions as $action): ?>
                                 <li class="wai-backup-row" style="flex-direction: column; align-items: flex-start; padding: 8px;">
@@ -319,7 +323,7 @@ trait Ui {
                                         </span>
                                         <button type="button" class="button button-small wai-rollback-btn" data-backup-id="<?php echo esc_attr($action['id']); ?>">↩️ Restore</button>
                                     </div>
-                                    <?php if (!empty($action['extra'])) echo $action['extra']; ?>
+                                    <?php if (!empty($action['extra'])) echo wp_kses_post($action['extra']); ?>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -393,7 +397,8 @@ trait Ui {
     }
 
     public function enqueue_playground_scripts($hook) {
-        if (strpos($hook, 'wizard-ai') !== false || (isset($_GET['page']) && $_GET['page'] === 'wizard-ai')) {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if (strpos($hook, 'wizard-ai') !== false || (isset($_GET['page']) && wp_unslash($_GET['page']) === 'wizard-ai')) {
             $user = wp_get_current_user();
             $prev = $user->syntax_highlighting;
             $user->syntax_highlighting = 'true';
@@ -410,9 +415,6 @@ trait Ui {
             wp_enqueue_style('code-editor');
             
             wp_enqueue_script('jquery-ui-resizable');
-            
-            wp_enqueue_style('wai-select2', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css', array(), '4.1.0-rc.0');
-            wp_enqueue_script('wai-select2', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js', array('jquery'), '4.1.0-rc.0', true);
             
             wp_enqueue_style('wbai-playground-style', WIZARD_AI_URL . 'modules/playground/assets/css/playground.css', array(), filemtime(WIZARD_AI_PATH . 'modules/playground/assets/css/playground.css'));
             

@@ -1,6 +1,5 @@
 <?php
 namespace WizardAi\Modules\Ai\Abilities;
-
 trait WordPress {
     public function register_wordpress_abilities() {
         wp_register_ability('wizard-ai/generate-image', [
@@ -38,7 +37,7 @@ trait WordPress {
                 $attach_id = media_handle_sideload($file_array, $post_id ?: 0);
 
                 if (is_wp_error($attach_id)) {
-                    @unlink($file_array['tmp_name']);
+                    @wp_delete_file($file_array['tmp_name']);
                     return $attach_id;
                 }
 

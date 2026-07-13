@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Playground;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 class Playground {
     use Traits\Init;
     use Traits\Ui;

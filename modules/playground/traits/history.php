@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Playground\Traits;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait History {
     private function get_prompts_log_file() {
         $upload_dir = wp_upload_dir();

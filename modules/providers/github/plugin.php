@@ -1,5 +1,6 @@
 <?php
-
+declare(strict_types=1);
+namespace WordPress\GithubAiProvider;
 /**
  * Plugin Name: AI Provider for Github
  * Plugin URI: https://github.com/WordPress/ai-provider-for-github
@@ -16,9 +17,9 @@
  * @package WordPress\GithubAiProvider
  */
 
-declare(strict_types=1);
 
-namespace WordPress\GithubAiProvider;
+
+
 
 use WordPress\AiClient\AiClient;
 use WordPress\GithubAiProvider\Provider\GithubProvider;

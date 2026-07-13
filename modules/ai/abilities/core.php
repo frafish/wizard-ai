@@ -1,6 +1,5 @@
 <?php
 namespace WizardAi\Modules\Ai\Abilities;
-
 trait Core {
     public function register_core_abilities() {
         wp_register_ability('wizard-ai/search', [
@@ -30,7 +29,7 @@ trait Core {
                             'title' => $post->post_title,
                             'url' => get_permalink($post->ID),
                             'type' => $post->post_type,
-                            'excerpt' => wp_trim_words(strip_shortcodes(strip_tags($post->post_content)), 55),
+                            'excerpt' => wp_trim_words(strip_shortcodes(wp_strip_all_tags($post->post_content)), 55),
                         ];
                     }
                 }
@@ -212,7 +211,8 @@ trait Core {
                 if (empty($filename) || pathinfo($filename, PATHINFO_EXTENSION) !== 'php') {
                     return new \WP_Error('invalid_filename', 'Filename must end in .php');
                 }
-                $sandbox_dir = WP_CONTENT_DIR . '/wai-sandbox/';
+                $upload_dir = wp_upload_dir();
+                $sandbox_dir = wp_normalize_path($upload_dir['basedir'] . '/wai-sandbox/');
                 if (!is_dir($sandbox_dir)) {
                     wp_mkdir_p($sandbox_dir);
                 }
@@ -222,7 +222,7 @@ trait Core {
                 $tmp_file = tempnam(sys_get_temp_dir(), 'wai_php_');
                 file_put_contents($tmp_file, $content);
                 exec('php -l ' . escapeshellarg($tmp_file) . ' 2>&1', $output, $return_var);
-                unlink($tmp_file);
+                wp_delete_file($tmp_file);
                 if ($return_var !== 0) {
                     return new \WP_Error('syntax_error', 'PHP Syntax error detected: ' . implode("\n", $output));
                 }
@@ -251,7 +251,7 @@ trait Core {
                 $path = wp_normalize_path($input['path']);
                 $content = $input['content'];
                 
-                $wp_content_dir = wp_normalize_path(WP_CONTENT_DIR);
+                $wp_content_dir = wp_normalize_path(constant('WP_CONTENT_DIR'));
                 if (strpos($path, $wp_content_dir) !== 0) {
                     return new \WP_Error('security_error', 'Modification is restricted to the wp-content directory to ensure site safety. You cannot modify: ' . $path);
                 }
@@ -260,7 +260,7 @@ trait Core {
                     $tmp_file = tempnam(sys_get_temp_dir(), 'wb_php_');
                     file_put_contents($tmp_file, $content);
                     exec('php -l ' . escapeshellarg($tmp_file) . ' 2>&1', $output, $return_var);
-                    unlink($tmp_file);
+                    wp_delete_file($tmp_file);
                     if ($return_var !== 0) {
                         return new \WP_Error('syntax_error', 'PHP Syntax error detected, file save aborted. Please fix the error and try again. Error: ' . implode("\n", $output));
                     }
@@ -268,7 +268,7 @@ trait Core {
                 
                 $dir = dirname($path);
                 if (!file_exists($dir)) {
-                    if (!mkdir($dir, 0755, true)) {
+                    if (!wp_mkdir_p($dir)) {
                         return new \WP_Error('file_error', 'Failed to create directory: ' . $dir);
                     }
                 }
@@ -297,7 +297,7 @@ trait Core {
                         if ($has_backup) {
                             file_put_contents($path, $backup_content);
                         } else {
-                            unlink($path);
+                            wp_delete_file($path);
                         }
                         
                         $err_msg = $is_error ? $response->get_error_message() : 'HTTP ' . $code;
@@ -693,17 +693,15 @@ trait Core {
                 }
                 
                 if ($action === 'read') {
-                    $log_path = WP_CONTENT_DIR . '/debug.log';
+                    $log_path = constant('WP_CONTENT_DIR') . '/debug.log';
                     if (!file_exists($log_path)) {
                         return ['success' => true, 'log' => 'Debug log is empty or does not exist.'];
                     }
                     $filesize = filesize($log_path);
                     $read_size = min(100000, $filesize);
-                    $file = @fopen($log_path, 'r');
-                    if ($file && $read_size > 0) {
-                        fseek($file, -$read_size, SEEK_END);
-                        $log_content = fread($file, $read_size);
-                        fclose($file);
+                    $offset = max(0, $filesize - $read_size);
+                    $log_content = file_get_contents($log_path, false, null, $offset, $read_size);
+                    if ($log_content !== false) {
                         return ['success' => true, 'log' => $log_content];
                     }
                     return new \WP_Error('read_error', 'Could not read debug.log.');

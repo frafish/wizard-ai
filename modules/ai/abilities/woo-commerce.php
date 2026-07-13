@@ -1,6 +1,6 @@
 <?php
 namespace WizardAi\Modules\Ai\Abilities;
-
+if ( ! defined( 'ABSPATH' ) ) exit;
 trait WooCommerce {
     public function register_woocommerce_abilities() {
         if (!class_exists('WooCommerce')) {
